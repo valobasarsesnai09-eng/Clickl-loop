@@ -1,3 +1,4 @@
+
 "use client";
 
 import { suggestClickLoopContent } from "@/ai/flows/suggest-click-loop-content";
@@ -103,7 +104,16 @@ export function AiSuggesterDialog({ isOpen, onClose, onAddLink }: AiSuggesterDia
             </div>
           </div>
 
-          {suggestions.length > 0 && (
+          {isLoading && (
+             <div className="flex items-center justify-center h-48 rounded-md border border-dashed">
+                <div className="flex flex-col items-center gap-2 text-muted-foreground">
+                    <Loader2 className="animate-spin size-6" />
+                    <p>AI is thinking...</p>
+                </div>
+             </div>
+          )}
+
+          {suggestions.length > 0 && !isLoading && (
             <div className="space-y-2">
               <Label>Suggestions</Label>
               <ScrollArea className="h-48 rounded-md border p-2">
@@ -119,12 +129,6 @@ export function AiSuggesterDialog({ isOpen, onClose, onAddLink }: AiSuggesterDia
                 </div>
               </ScrollArea>
             </div>
-          )}
-
-          {isLoading && (
-             <div className="flex items-center justify-center h-48 rounded-md border border-dashed">
-                <p className="text-muted-foreground">AI is thinking...</p>
-             </div>
           )}
         </div>
         <DialogFooter>
