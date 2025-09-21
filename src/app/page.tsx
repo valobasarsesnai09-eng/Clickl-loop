@@ -67,7 +67,17 @@ const emptyStateImage = PlaceHolderImages.find(
 async function getUrlTitle(url: string): Promise<string> {
     try {
         const response = await fetch(`https://api.allorigins.win/get?url=${encodeURIComponent(url)}`);
-        const data = await response.json();
+        const textResponse = await response.text();
+        if (!textResponse) return '';
+        
+        let data;
+        try {
+            data = JSON.parse(textResponse);
+        } catch (e) {
+            console.error("Failed to parse JSON from allorigins.win", e);
+            return '';
+        }
+
         const text = data.contents;
         if (!text) return '';
         const matches = text.match(/<title>(.*?)<\/title>/);
@@ -464,7 +474,7 @@ export default function ClickLoopPage() {
                                 <FormItem>
                                     <FormLabel>বিরতি (সেকেন্ড)</FormLabel>
                                     <FormControl>
-                                    <Input type="number" min="1" {...field} value={field.value || ''} onChange={e => field.onChange(e.target.value === '' ? 0 : parseInt(e.target.value, 10))} />
+                                    <Input type="number" min="1" {...field} value={field.value ?? ''} onChange={e => field.onChange(e.target.value === '' ? '' : parseInt(e.target.value, 10))} />
                                     </FormControl>
                                     <FormMessage />
                                 </FormItem>
@@ -477,7 +487,7 @@ export default function ClickLoopPage() {
                                 <FormItem>
                                     <FormLabel>পুনরাবৃত্তি (0=∞)</FormLabel>
                                     <FormControl>
-                                    <Input type="number" min="0" {...field} value={field.value || ''} onChange={e => field.onChange(e.target.value === '' ? 0 : parseInt(e.target.value, 10))}/>
+                                    <Input type="number" min="0" {...field} value={field.value ?? ''} onChange={e => field.onChange(e.target.value === '' ? '' : parseInt(e.target.value, 10))}/>
                                     </FormControl>
                                     <FormMessage />
                                 </FormItem>
@@ -604,5 +614,7 @@ export default function ClickLoopPage() {
     </TooltipProvider>
   );
 }
+
+    
 
     
