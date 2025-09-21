@@ -1,8 +1,8 @@
 import { z } from 'zod';
 
 export const addEditLinkSchema = z.object({
-  title: z.string().min(1, 'Title is required.'),
-  url: z.string().url('Please enter a valid URL.'),
-  intervalSec: z.coerce.number().int().min(1, 'Interval must be at least 1 second.'),
-  iterations: z.coerce.number().int().min(0, 'Iterations must be 0 or more (0 for infinite).'),
+  title: z.string().min(1, 'শিরোনাম আবশ্যক।'),
+  url: z.string().url('অনুগ্রহ করে একটি বৈধ URL লিখুন।'),
+  intervalSec: z.coerce.number().int().min(1, 'বিরতি কমপক্ষে ১ সেকেন্ড হতে হবে।'),
+  iterations: z.coerce.number().int().min(0, 'পুনরাবৃত্তি অবশ্যই ০ বা তার বেশি হতে হবে (০ অসীমের জন্য)।'),
 });

@@ -22,6 +22,7 @@ import {
   SheetTitle,
   SheetFooter,
 } from "@/components/ui/sheet";
+import { ArrowLeft } from "lucide-react";
 
 type SettingsSheetProps = {
   isOpen: boolean;
@@ -50,53 +51,56 @@ export function SettingsSheet({ isOpen, onClose, settings, onSettingsChange }: S
     <Sheet open={isOpen} onOpenChange={onClose}>
       <SheetContent>
         <SheetHeader>
-          <SheetTitle>Settings</SheetTitle>
+          <SheetTitle>সেটিংস</SheetTitle>
           <SheetDescription>
-            Configure the application behavior to fit your needs.
+            আপনার প্রয়োজন অনুযায়ী অ্যাপ্লিকেশনটির আচরণ কনফিগার করুন।
           </SheetDescription>
         </SheetHeader>
         <div className="grid gap-6 py-6">
           <div className="grid gap-3">
-            <Label htmlFor="cycle-mode">Cycle Mode</Label>
+            <Label htmlFor="cycle-mode">সাইকেল মোড</Label>
             <Select
               value={localSettings.mode}
               onValueChange={(value: CycleMode) => handleChange('mode', value)}
             >
               <SelectTrigger id="cycle-mode">
-                <SelectValue placeholder="Select a mode" />
+                <SelectValue placeholder="একটি মোড নির্বাচন করুন" />
               </SelectTrigger>
               <SelectContent>
-                <SelectItem value={CycleMode.SEQUENTIAL}>Sequential</SelectItem>
-                <SelectItem value={CycleMode.RANDOM}>Random</SelectItem>
+                <SelectItem value={CycleMode.SEQUENTIAL}>ক্রমিক</SelectItem>
+                <SelectItem value={CycleMode.RANDOM}>এলোমেলো</SelectItem>
               </SelectContent>
             </Select>
-            <p className="text-xs text-muted-foreground">"Loop This" button on a link card will always run a single loop for that link only.</p>
+            <p className="text-xs text-muted-foreground">লিঙ্ক কার্ডে "এটি লুপ করুন" বোতামটি সবসময় শুধুমাত্র সেই লিঙ্কের জন্য একটি একক লুপ চালাবে।</p>
           </div>
           <div className="grid gap-3">
-            <Label htmlFor="global-interval">Global Interval Override (seconds)</Label>
+            <Label htmlFor="global-interval">গ্লোবাল ইন্টারভাল ওভাররাইড (সেকেন্ড)</Label>
             <Input
               id="global-interval"
               type="number"
               value={localSettings.globalInterval}
               onChange={(e) => handleChange('globalInterval', e.target.valueAsNumber || 0)}
-              placeholder="0 to use per-link interval"
+              placeholder="0 ব্যবহার করতে প্রতি-লিঙ্ক বিরতি"
             />
-             <p className="text-xs text-muted-foreground">Set to 0 to use each link's individual interval setting.</p>
+             <p className="text-xs text-muted-foreground">প্রতিটি লিঙ্কের নিজস্ব বিরতি সেটিং ব্যবহার করতে 0 সেট করুন।</p>
           </div>
           <div className="grid gap-3">
-            <Label htmlFor="max-iterations">Max Total Iterations (Safety Limit)</Label>
+            <Label htmlFor="max-iterations">সর্বোচ্চ মোট পুনরাবৃত্তি (সুরক্ষা সীমা)</Label>
             <Input
               id="max-iterations"
               type="number"
               value={localSettings.maxTotalIterations}
               onChange={(e) => handleChange('maxTotalIterations', e.target.valueAsNumber || 1000)}
             />
-            <p className="text-xs text-muted-foreground">The loop will automatically stop after this many total iterations. Set to 0 for no limit.</p>
+            <p className="text-xs text-muted-foreground">এই মোট পুনরাবৃত্তির পরে লুপটি স্বয়ংক্রিয়ভাবে বন্ধ হয়ে যাবে। কোনো সীমা না চাইলে 0 সেট করুন।</p>
           </div>
         </div>
-        <SheetFooter>
-          <Button variant="outline" onClick={onClose}>Cancel</Button>
-          <Button onClick={handleSave}>Save Changes</Button>
+        <SheetFooter className="sm:justify-between">
+          <Button variant="ghost" onClick={onClose}>
+            <ArrowLeft className="mr-2" />
+            হোমপেজে ফিরে যান
+          </Button>
+          <Button onClick={handleSave}>পরিবর্তন সংরক্ষণ করুন</Button>
         </SheetFooter>
       </SheetContent>
     </Sheet>

@@ -92,7 +92,7 @@ export function AddEditLinkDialog({ isOpen, onClose, onSubmit, link }: AddEditLi
         const title = await getUrlTitle(url);
         if (title) {
           form.setValue('title', title, { shouldValidate: true });
-          toast({ title: "Title Suggested", description: "We've suggested a title based on the URL." });
+          toast({ title: "শিরোনাম প্রস্তাব করা হয়েছে", description: "আমরা URL এর উপর ভিত্তি করে একটি শিরোনাম প্রস্তাব করেছি।" });
         }
       } catch (error) {
          // Silently fail, user can enter title manually
@@ -105,9 +105,9 @@ export function AddEditLinkDialog({ isOpen, onClose, onSubmit, link }: AddEditLi
     <Dialog open={isOpen} onOpenChange={(open) => { if (!open) onClose(); }}>
       <DialogContent className="sm:max-w-[425px]">
         <DialogHeader>
-          <DialogTitle>{link ? "Edit Link" : "Add New Link"}</DialogTitle>
+          <DialogTitle>{link ? "লিঙ্ক সম্পাদনা করুন" : "নতুন লিঙ্ক যোগ করুন"}</DialogTitle>
           <DialogDescription>
-            {link ? "Update the details of your link." : "Fill in the details for your new link. We'll try to fetch the title for you."}
+            {link ? "আপনার লিঙ্কের বিবরণ আপডেট করুন।" : "আপনার নতুন লিঙ্কের জন্য বিবরণ পূরণ করুন। আমরা আপনার জন্য শিরোনাম আনার চেষ্টা করব।"}
           </DialogDescription>
         </DialogHeader>
         <Form {...form}>
@@ -130,9 +130,9 @@ export function AddEditLinkDialog({ isOpen, onClose, onSubmit, link }: AddEditLi
               name="title"
               render={({ field }) => (
                 <FormItem>
-                  <FormLabel>Title</FormLabel>
+                  <FormLabel>শিরোনাম</FormLabel>
                   <FormControl>
-                    <Input placeholder="e.g., My Test Page" {...field} />
+                    <Input placeholder="যেমন, আমার পরীক্ষার পাতা" {...field} />
                   </FormControl>
                   <FormMessage />
                 </FormItem>
@@ -144,7 +144,7 @@ export function AddEditLinkDialog({ isOpen, onClose, onSubmit, link }: AddEditLi
                 name="intervalSec"
                 render={({ field }) => (
                   <FormItem>
-                    <FormLabel>Interval (sec)</FormLabel>
+                    <FormLabel>বিরতি (সেকেন্ড)</FormLabel>
                     <FormControl>
                       <Input type="number" min="1" {...field} onChange={e => field.onChange(e.target.valueAsNumber)} />
                     </FormControl>
@@ -157,7 +157,7 @@ export function AddEditLinkDialog({ isOpen, onClose, onSubmit, link }: AddEditLi
                 name="iterations"
                 render={({ field }) => (
                   <FormItem>
-                    <FormLabel>Repeats (0=∞)</FormLabel>
+                    <FormLabel>পুনরাবৃত্তি (0=∞)</FormLabel>
                     <FormControl>
                       <Input type="number" min="0" {...field} onChange={e => field.onChange(e.target.valueAsNumber)}/>
                     </FormControl>
@@ -168,9 +168,9 @@ export function AddEditLinkDialog({ isOpen, onClose, onSubmit, link }: AddEditLi
             </div>
             <DialogFooter>
               <Button type="button" variant="ghost" onClick={onClose}>
-                Cancel
+                বাতিল করুন
               </Button>
-              <Button type="submit">{link ? "Save Changes" : "Add Link"}</Button>
+              <Button type="submit">{link ? "পরিবর্তন সংরক্ষণ করুন" : "লিঙ্ক যোগ করুন"}</Button>
             </DialogFooter>
           </form>
         </Form>

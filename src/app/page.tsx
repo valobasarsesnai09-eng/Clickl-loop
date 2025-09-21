@@ -113,8 +113,8 @@ export default function ClickLoopPage() {
     };
     setLinks((prev) => [...prev, newLink]);
     toast({
-      title: "Link Added",
-      description: `"${data.title}" has been added to your list.`,
+      title: "লিঙ্ক যোগ করা হয়েছে",
+      description: `"${data.title}" আপনার তালিকায় যোগ করা হয়েছে।`,
     });
     setDialogOpen(null);
   };
@@ -129,8 +129,8 @@ export default function ClickLoopPage() {
       )
     );
     toast({
-      title: "Link Updated",
-      description: `"${data.title}" has been updated.`,
+      title: "লিঙ্ক আপডেট করা হয়েছে",
+      description: `"${data.title}" আপডেট করা হয়েছে।`,
     });
     setDialogOpen(null);
     setEditingLink(null);
@@ -141,8 +141,8 @@ export default function ClickLoopPage() {
     if (linkToDelete) {
         setLinks((prev) => prev.filter((link) => link.id !== id));
         toast({
-            title: "Link Removed",
-            description: `"${linkToDelete.title}" has been removed.`,
+            title: "লিঙ্ক মুছে ফেলা হয়েছে",
+            description: `"${linkToDelete.title}" তালিকা থেকে সরানো হয়েছে।`,
             variant: "destructive",
         });
     }
@@ -173,16 +173,16 @@ export default function ClickLoopPage() {
     singleLoopLinkIdRef.current = null;
     
     // Don't reset currentUrl to about:blank immediately, let the user see the last page
-    if (reason === "manual") addLog({ eventType: "STOP", message: "Loop stopped by user." });
-    if (reason === "finished") addLog({ eventType: "FINISH", message: "All loop cycles completed." });
-    if (reason === "error") addLog({ eventType: "ERROR", message: "Loop stopped due to an error." });
+    if (reason === "manual") addLog({ eventType: "STOP", message: "ব্যবহারকারী লুপ বন্ধ করেছেন।" });
+    if (reason === "finished") addLog({ eventType: "FINISH", message: "সমস্ত লুপ চক্র সম্পন্ন হয়েছে।" });
+    if (reason === "error") addLog({ eventType: "ERROR", message: "ত্রুটির কারণে লুপ বন্ধ হয়ে গেছে।" });
 
   };
 
   const startLoop = (singleLinkId: string | null = null) => {
     const enabledLinks = links.filter(l => l.enabled);
     if (enabledLinks.length === 0) {
-        toast({ title: "No enabled links", description: "Please add and enable at least one link to start.", variant: "destructive" });
+        toast({ title: "কোনো সক্রিয় লিঙ্ক নেই", description: "শুরু করতে অনুগ্রহ করে至少 একটি লিঙ্ক যোগ এবং সক্রিয় করুন।", variant: "destructive" });
         return;
     }
     setIsRunning(true);
@@ -199,9 +199,9 @@ export default function ClickLoopPage() {
 
     if(settings.mode === CycleMode.SINGLE && singleLinkId){
       const link = links.find(l => l.id === singleLinkId);
-      addLog({ eventType: "START", message: `Single link loop started for "${link?.title}".` });
+      addLog({ eventType: "START", message: `"${link?.title}" এর জন্য একক লিঙ্ক লুপ শুরু হয়েছে।` });
     } else {
-      addLog({ eventType: "START", message: `Loop started in ${settings.mode} mode.` });
+      addLog({ eventType: "START", message: `${settings.mode} মোডে লুপ শুরু হয়েছে।` });
     }
   };
 
@@ -211,13 +211,13 @@ export default function ClickLoopPage() {
     if (loopTimeoutRef.current) {
         clearTimeout(loopTimeoutRef.current);
     }
-    addLog({ eventType: "PAUSE", message: "Loop paused." });
+    addLog({ eventType: "PAUSE", message: "লুপ সাময়িকভাবে বন্ধ হয়েছে।" });
   };
 
   const resumeLoop = () => {
     if (!isRunning || !isPaused) return;
     setIsPaused(false);
-    addLog({ eventType: "RESUME", message: "Loop resumed." });
+    addLog({ eventType: "RESUME", message: "লুপ আবার শুরু হয়েছে।" });
   };
   
   React.useEffect(() => {
@@ -232,13 +232,13 @@ export default function ClickLoopPage() {
         }
 
         if(enabledLinks.length === 0){
-            addLog({ eventType: "FINISH", message: "No enabled links to run." });
+            addLog({ eventType: "FINISH", message: "চালানোর জন্য কোনো সক্রিয় লিঙ্ক নেই।" });
             stopLoop("finished");
             return;
         }
 
         if (settings.maxTotalIterations > 0 && iterationCountRef.current >= settings.maxTotalIterations) {
-            addLog({ eventType: "FINISH", message: `Max total iterations (${settings.maxTotalIterations}) reached.` });
+            addLog({ eventType: "FINISH", message: `সর্বোচ্চ পুনরাবৃত্তি (${settings.maxTotalIterations}) সংখ্যায় পৌঁছেছে।` });
             stopLoop("finished");
             return;
         }
@@ -256,7 +256,7 @@ export default function ClickLoopPage() {
         
         if (!nextLink) {
             stopLoop("error");
-            addLog({ eventType: "ERROR", message: "Could not determine next link." });
+            addLog({ eventType: "ERROR", message: "পরবর্তী লিঙ্ক নির্ধারণ করা যায়নি।" });
             return;
         }
         
@@ -265,7 +265,7 @@ export default function ClickLoopPage() {
             const completedCyclesForLink = Math.floor(iterationCountRef.current / enabledLinks.length);
             if (completedCyclesForLink >= linkIterations) {
                 // Skip this link if it has reached its iteration count
-                addLog({eventType: 'INFO', message: `Max iterations for "${nextLink.title}" reached. Skipping.`});
+                addLog({eventType: 'INFO', message: `"${nextLink.title}" এর জন্য সর্বোচ্চ পুনরাবৃত্তি সম্পন্ন হয়েছে। এড়িয়ে যাওয়া হচ্ছে।`});
                 runCycle();
                 return;
             }
@@ -274,7 +274,7 @@ export default function ClickLoopPage() {
         iterationCountRef.current++;
         setCurrentUrl(nextLink.url);
         setActiveLink(nextLink);
-        addLog({ eventType: "LOAD", message: `Loading: ${nextLink.title} (${nextLink.url})` });
+        addLog({ eventType: "LOAD", message: `লোড হচ্ছে: ${nextLink.title} (${nextLink.url})` });
         
         const interval = (settings.globalInterval > 0 ? settings.globalInterval : nextLink.intervalSec) * 1000;
         
@@ -307,7 +307,7 @@ export default function ClickLoopPage() {
                 <Power className={cn("size-4", link.enabled ? "text-green-500" : "text-destructive")} />
               </Button>
             </TooltipTrigger>
-            <TooltipContent>{link.enabled ? 'Disable' : 'Enable'}</TooltipContent>
+            <TooltipContent>{link.enabled ? 'নিষ্ক্রিয় করুন' : 'সক্রিয় করুন'}</TooltipContent>
           </Tooltip>
           <Tooltip>
             <TooltipTrigger asChild>
@@ -315,7 +315,7 @@ export default function ClickLoopPage() {
                 <Pencil className="size-4" />
               </Button>
             </TooltipTrigger>
-            <TooltipContent>Edit Link</TooltipContent>
+            <TooltipContent>লিঙ্ক সম্পাদনা করুন</TooltipContent>
           </Tooltip>
           <Tooltip>
             <TooltipTrigger asChild>
@@ -323,23 +323,23 @@ export default function ClickLoopPage() {
                 <Trash2 className="size-4" />
               </Button>
             </TooltipTrigger>
-            <TooltipContent>Delete Link</TooltipContent>
+            <TooltipContent>লিঙ্ক মুছুন</TooltipContent>
           </Tooltip>
         </div>
       </CardHeader>
       <CardContent className="flex items-center justify-between text-sm text-muted-foreground">
         <div className="flex items-center gap-4">
-          <Badge variant="secondary">Interval: {link.intervalSec}s</Badge>
-          <Badge variant="secondary">Repeats: {link.iterations === 0 ? "∞" : link.iterations}</Badge>
+          <Badge variant="secondary">বিরতি: {link.intervalSec} সেকেন্ড</Badge>
+          <Badge variant="secondary">পুনরাবৃত্তি: {link.iterations === 0 ? "∞" : link.iterations}</Badge>
         </div>
           <Tooltip>
             <TooltipTrigger asChild>
               <Button variant="outline" size="sm" onClick={() => startLoop(link.id)} disabled={isRunning || !link.enabled}>
                 <Repeat1 className="mr-2 size-4" />
-                Loop This
+                এটি লুপ করুন
               </Button>
             </TooltipTrigger>
-            <TooltipContent>Start a single loop with just this link</TooltipContent>
+            <TooltipContent>শুধুমাত্র এই লিঙ্কটি দিয়ে একটি একক লুপ শুরু করুন</TooltipContent>
           </Tooltip>
       </CardContent>
     </Card>
@@ -361,7 +361,7 @@ export default function ClickLoopPage() {
               <div className="p-4">
                 <Button className="w-full" onClick={() => setDialogOpen("add")}>
                   <Plus className="mr-2 size-4" />
-                  Add New Link
+                  নতুন লিঙ্ক যোগ করুন
                 </Button>
               </div>
               <SidebarSeparator />
@@ -371,8 +371,8 @@ export default function ClickLoopPage() {
                     links.map(link => <LinkCard key={link.id} link={link} />)
                   ) : isClient ? (
                     <div className="text-center text-muted-foreground p-8">
-                        <p>No links yet.</p>
-                        <p className="text-sm">Add a link to get started.</p>
+                        <p>এখনও কোন লিঙ্ক নেই।</p>
+                        <p className="text-sm">শুরু করতে একটি লিঙ্ক যোগ করুন।</p>
                     </div>
                   ) : null }
                 </div>
@@ -384,25 +384,25 @@ export default function ClickLoopPage() {
             <SidebarFooter className="p-4 gap-4">
               {isRunning && activeLink && (
                   <div className="p-3 rounded-lg bg-accent/50 text-accent-foreground text-sm">
-                      <p className="font-bold truncate">Current: {activeLink.title}</p>
+                      <p className="font-bold truncate">বর্তমান: {activeLink.title}</p>
                       <p className="text-xs text-muted-foreground">
-                          Total Iterations: {iterationCountRef.current} / {settings.maxTotalIterations > 0 ? settings.maxTotalIterations : '∞'}
+                          মোট পুনরাবৃত্তি: {iterationCountRef.current} / {settings.maxTotalIterations > 0 ? settings.maxTotalIterations : '∞'}
                       </p>
                   </div>
               )}
               <div className="grid grid-cols-3 gap-2">
                 {!isRunning ? (
                     <Button className="col-span-3" onClick={() => startLoop()} disabled={links.filter(l => l.enabled).length === 0}>
-                        <Play className="mr-2"/> Start {settings.mode === CycleMode.RANDOM ? "Random" : "Sequential"} Loop
+                        <Play className="mr-2"/> শুরু করুন {settings.mode === CycleMode.RANDOM ? "এলোমেলো" : "ক্রমিক"} লুপ
                     </Button>
                 ) : (
                     <>
                         <Button variant="secondary" onClick={isPaused ? resumeLoop : pauseLoop}>
                             {isPaused ? <Play className="mr-2"/> : <Pause className="mr-2"/>}
-                            {isPaused ? "Resume" : "Pause"}
+                            {isPaused ? "পুনরায় শুরু" : "বিরতি"}
                         </Button>
                         <Button variant="destructive" className="col-span-2" onClick={() => stopLoop("manual")}>
-                            <X className="mr-2"/> Stop Loop
+                            <X className="mr-2"/> লুপ বন্ধ করুন
                         </Button>
                     </>
                 )}
@@ -438,7 +438,7 @@ export default function ClickLoopPage() {
                             {(isRunning && currentUrl === 'about:blank') && 
                                 <div className="absolute inset-0 bg-background/80 flex flex-col items-center justify-center gap-4">
                                     <Loader2 className="size-8 animate-spin text-primary" />
-                                    <p className="text-muted-foreground">Preparing loop...</p>
+                                    <p className="text-muted-foreground">লুপ প্রস্তুত করা হচ্ছে...</p>
                                 </div>
                             }
                         </>
@@ -453,14 +453,14 @@ export default function ClickLoopPage() {
                                 data-ai-hint={emptyStateImage.imageHint}
                             />
                         </div>
-                        <h2 className="text-3xl font-bold font-headline mb-2">Welcome to ClickLoop</h2>
-                        <p className="max-w-md text-muted-foreground mb-6">Start by adding your first link, or use our AI assistant to suggest content for your loops.</p>
+                        <h2 className="text-3xl font-bold font-headline mb-2">ClickLoop এ স্বাগতম</h2>
+                        <p className="max-w-md text-muted-foreground mb-6">আপনার প্রথম লিঙ্ক যোগ করে শুরু করুন, অথবা আপনার লুপের জন্য বিষয়বস্তু প্রস্তাব করার জন্য আমাদের AI সহকারী ব্যবহার করুন।</p>
                         <div className="flex gap-4">
                             <Button onClick={() => setDialogOpen("add")}>
-                                <Plus className="mr-2 size-4" /> Add Link
+                                <Plus className="mr-2 size-4" /> লিঙ্ক যোগ করুন
                             </Button>
                             <Button variant="outline" onClick={() => setDialogOpen("ai")}>
-                                <Sparkles className="mr-2 size-4" /> AI Suggestions
+                                <Sparkles className="mr-2 size-4" /> AI সাজেশন
                             </Button>
                         </div>
                       </div>
