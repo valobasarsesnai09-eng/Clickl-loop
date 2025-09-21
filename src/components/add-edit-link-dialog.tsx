@@ -1,3 +1,4 @@
+
 "use client";
 
 import { zodResolver } from "@hookform/resolvers/zod";
@@ -143,7 +144,7 @@ export function AddEditLinkDialog({ isOpen, onClose, onSubmit, link }: AddEditLi
                   <FormItem>
                     <FormLabel>বিরতি (সেকেন্ড)</FormLabel>
                     <FormControl>
-                      <Input type="number" min="1" {...field} onChange={e => field.onChange(e.target.value === '' ? '' : e.target.valueAsNumber)} />
+                      <Input type="number" min="1" {...field} value={field.value || ''} onChange={e => field.onChange(e.target.value === '' ? 0 : parseInt(e.target.value, 10))} />
                     </FormControl>
                     <FormMessage />
                   </FormItem>
@@ -156,7 +157,7 @@ export function AddEditLinkDialog({ isOpen, onClose, onSubmit, link }: AddEditLi
                   <FormItem>
                     <FormLabel>পুনরাবৃত্তি (0=∞)</FormLabel>
                     <FormControl>
-                      <Input type="number" min="0" {...field} onChange={e => field.onChange(e.target.value === '' ? '' : e.target.valueAsNumber)}/>
+                      <Input type="number" min="0" {...field} value={field.value || ''} onChange={e => field.onChange(e.target.value === '' ? 0 : parseInt(e.target.value, 10))}/>
                     </FormControl>
                     <FormMessage />
                   </FormItem>
@@ -175,5 +176,4 @@ export function AddEditLinkDialog({ isOpen, onClose, onSubmit, link }: AddEditLi
     </Dialog>
   );
 }
-
     

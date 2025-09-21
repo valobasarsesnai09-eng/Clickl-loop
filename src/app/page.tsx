@@ -152,12 +152,12 @@ export default function ClickLoopPage() {
     }
   };
 
-  const addLog = (entry: Omit<LogEntry, "timestamp">) => {
+  const addLog = React.useCallback((entry: Omit<LogEntry, "timestamp">) => {
     setLogs((prev) => [
       { ...entry, timestamp: Date.now() },
       ...prev,
     ]);
-  };
+  }, [setLogs]);
   
   const handleUpdateLink = (
     id: string,
@@ -201,7 +201,7 @@ export default function ClickLoopPage() {
     setDialogOpen("edit");
   };
 
-  const stopLoop = (reason: "manual" | "finished" | "error") => {
+  const stopLoop = React.useCallback((reason: "manual" | "finished" | "error") => {
     if (loopTimeoutRef.current) {
       clearTimeout(loopTimeoutRef.current);
     }
@@ -218,7 +218,7 @@ export default function ClickLoopPage() {
     if (reason === "finished") addLog({ eventType: "FINISH", message: "সমস্ত লুপ চক্র সম্পন্ন হয়েছে।" });
     if (reason === "error") addLog({ eventType: "ERROR", message: "ত্রুটির কারণে লুপ বন্ধ হয়ে গেছে।" });
 
-  };
+  }, [addLog]);
 
   const startLoop = (singleLinkId: string | null = null) => {
     const enabledLinks = links.filter(l => l.enabled);
@@ -336,7 +336,7 @@ export default function ClickLoopPage() {
         loopTimeoutRef.current = setTimeout(runCycle, interval);
     };
 
-    const initialDelay = currentUrl === 'about:blank' ? 100 : 0;
+    const initialDelay = activeLink === null ? 100 : 0;
     loopTimeoutRef.current = setTimeout(runCycle, initialDelay);
 
     return () => {
@@ -344,7 +344,7 @@ export default function ClickLoopPage() {
             clearTimeout(loopTimeoutRef.current);
         }
     };
-  }, [isRunning, isPaused, links, settings, setLogs, stopLoop]);
+  }, [isRunning, isPaused, links, settings, addLog, stopLoop, activeLink]);
 
 
   const LinkCard = ({ link }: { link: LinkItem }) => (
@@ -464,7 +464,7 @@ export default function ClickLoopPage() {
                                 <FormItem>
                                     <FormLabel>বিরতি (সেকেন্ড)</FormLabel>
                                     <FormControl>
-                                    <Input type="number" min="1" {...field} onChange={e => field.onChange(e.target.value === '' ? '' : e.target.valueAsNumber)} />
+                                    <Input type="number" min="1" {...field} value={field.value || ''} onChange={e => field.onChange(e.target.value === '' ? 0 : parseInt(e.target.value, 10))} />
                                     </FormControl>
                                     <FormMessage />
                                 </FormItem>
@@ -477,7 +477,7 @@ export default function ClickLoopPage() {
                                 <FormItem>
                                     <FormLabel>পুনরাবৃত্তি (0=∞)</FormLabel>
                                     <FormControl>
-                                    <Input type="number" min="0" {...field} onChange={e => field.onChange(e.target.value === '' ? '' : e.target.valueAsNumber)}/>
+                                    <Input type="number" min="0" {...field} value={field.value || ''} onChange={e => field.onChange(e.target.value === '' ? 0 : parseInt(e.target.value, 10))}/>
                                     </FormControl>
                                     <FormMessage />
                                 </FormItem>
