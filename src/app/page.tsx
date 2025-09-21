@@ -56,6 +56,8 @@ import {
   X,
   Repeat1,
   Loader2,
+  Timer,
+  Repeat,
 } from "lucide-react";
 import { addEditLinkSchema } from "@/lib/schemas";
 
@@ -105,6 +107,8 @@ export default function ClickLoopPage() {
   const [isPaused, setIsPaused] = React.useState(false);
   const [currentUrl, setCurrentUrl] = React.useState("about:blank");
   const [activeLink, setActiveLink] = React.useState<LinkItem | null>(null);
+  const [linkVisitCount, setLinkVisitCount] = React.useState<Record<string, number>>({});
+
 
   const [isClient, setIsClient] = React.useState(false);
   React.useEffect(() => setIsClient(true), []);
@@ -118,7 +122,7 @@ export default function ClickLoopPage() {
   const iterationCountRef = React.useRef(0);
   const currentLinkIndexRef = React.useRef(-1);
   const singleLoopLinkIdRef = React.useRef<string | null>(null);
-  const linkVisitCountRef = React.useRef<Record<string, number>>({});
+  
 
   const { toast } = useToast();
 
@@ -223,7 +227,7 @@ export default function ClickLoopPage() {
     iterationCountRef.current = 0;
     currentLinkIndexRef.current = -1;
     singleLoopLinkIdRef.current = null;
-    linkVisitCountRef.current = {};
+    setLinkVisitCount({});
     
     if (reason === "manual") addLog({ eventType: "STOP", message: "ব্যবহারকারী লুপ বন্ধ করেছেন।" });
     if (reason === "finished") addLog({ eventType: "FINISH", message: "সমস্ত লুপ চক্র সম্পন্ন হয়েছে।" });
@@ -243,7 +247,7 @@ export default function ClickLoopPage() {
     setIsRunning(true);
     setIsPaused(false);
     iterationCountRef.current = 0;
-    linkVisitCountRef.current = {};
+    setLinkVisitCount({});
     
     const relevantLinks = singleLinkId ? enabledLinks.filter(l => l.id === singleLinkId) : enabledLinks;
     const initialIndex = singleLinkId ? -1 : (settings.mode === CycleMode.RANDOM ? Math.floor(Math.random() * relevantLinks.length) -1 : -1) ;
@@ -289,11 +293,15 @@ export default function ClickLoopPage() {
     if (singleLoopLinkIdRef.current) {
       availableLinks = availableLinks.filter(l => l.id === singleLoopLinkIdRef.current);
     } else {
-      availableLinks = availableLinks.filter(l => {
-        if (l.iterations === 0) return true;
-        const visitedCount = linkVisitCountRef.current[l.id] || 0;
-        return visitedCount < l.iterations;
-      });
+        // Use a functional update for linkVisitCount to get the latest state
+        setLinkVisitCount(currentCounts => {
+            availableLinks = availableLinks.filter(l => {
+              if (l.iterations === 0) return true;
+              const visitedCount = currentCounts[l.id] || 0;
+              return visitedCount < l.iterations;
+            });
+            return currentCounts; // No change needed here, just for filtering
+        });
     }
 
     if (availableLinks.length === 0) {
@@ -336,12 +344,20 @@ export default function ClickLoopPage() {
       return;
     }
 
-    linkVisitCountRef.current[nextLink.id] = (linkVisitCountRef.current[nextLink.id] || 0) + 1;
+    const nextLinkFinal = nextLink; // Create a stable reference
+    setLinkVisitCount(prevCounts => {
+      const newCount = (prevCounts[nextLinkFinal.id] || 0) + 1;
+      addLog({ eventType: "LOAD", message: `লোড হচ্ছে: ${nextLinkFinal.title} (${nextLinkFinal.url}) - ভিজিট: ${newCount}${nextLinkFinal.iterations > 0 ? '/' + nextLinkFinal.iterations : ''}` });
+      return {
+          ...prevCounts,
+          [nextLinkFinal.id]: newCount,
+      };
+    });
+
     iterationCountRef.current++;
     setCurrentUrl(nextLink.url);
     setActiveLink(nextLink);
-    addLog({ eventType: "LOAD", message: `লোড হচ্ছে: ${nextLink.title} (${nextLink.url}) - ভিজিট: ${linkVisitCountRef.current[nextLink.id]}${nextLink.iterations > 0 ? '/' + nextLink.iterations : ''}` });
-
+    
     const interval = (settings.globalInterval > 0 ? settings.globalInterval : nextLink.intervalSec) * 1000;
     
     if (loopTimeoutRef.current) {
@@ -353,8 +369,6 @@ export default function ClickLoopPage() {
   
   React.useEffect(() => {
     if (isRunning && !isPaused) {
-        // If the loop was resumed, immediately call runCycle.
-        // runCycle itself will set the next timeout.
         const timeoutId = loopTimeoutRef.current;
         if (!timeoutId) {
             runCycle();
@@ -372,57 +386,71 @@ export default function ClickLoopPage() {
 }, [isRunning, isPaused, runCycle]);
 
 
-  const LinkCard = ({ link }: { link: LinkItem }) => (
-    <Card className={cn("transition-all", activeLink?.id === link.id && "ring-2 ring-primary", !link.enabled && "opacity-50 bg-muted/50")}>
-      <CardHeader className="flex flex-row items-start justify-between gap-4 pb-2">
-        <div className="flex-1 overflow-hidden">
-          <CardTitle className="text-lg font-headline truncate">{link.title}</CardTitle>
-          <CardDescription className="truncate" title={link.url}>{link.url}</CardDescription>
-        </div>
-        <div className="flex items-center gap-1">
-          <Tooltip>
-            <TooltipTrigger asChild>
-              <Button variant="ghost" size="icon" className="size-8" onClick={() => toggleLinkEnabled(link.id)} disabled={isRunning}>
-                <Power className={cn("size-4", link.enabled ? "text-green-500" : "text-destructive")} />
-              </Button>
-            </TooltipTrigger>
-            <TooltipContent>{link.enabled ? 'নিষ্ক্রিয় করুন' : 'সক্রিয় করুন'}</TooltipContent>
-          </Tooltip>
-          <Tooltip>
-            <TooltipTrigger asChild>
-              <Button variant="ghost" size="icon" className="size-8" onClick={() => openEditDialog(link)} disabled={isRunning}>
-                <Pencil className="size-4" />
-              </Button>
-            </TooltipTrigger>
-            <TooltipContent>লিঙ্ক সম্পাদনা করুন</TooltipContent>
-          </Tooltip>
-          <Tooltip>
-            <TooltipTrigger asChild>
-              <Button variant="ghost" size="icon" className="size-8 text-destructive" onClick={() => handleDeleteLink(link.id)} disabled={isRunning}>
-                <Trash2 className="size-4" />
-              </Button>
-            </TooltipTrigger>
-            <TooltipContent>লিঙ্ক মুছুন</TooltipContent>
-          </Tooltip>
-        </div>
-      </CardHeader>
-      <CardContent className="flex items-center justify-between text-sm text-muted-foreground">
-        <div className="flex items-center gap-4">
-          <Badge variant="secondary">বিরতি: {link.intervalSec} সেকেন্ড</Badge>
-          <Badge variant="secondary">পুনরাবৃত্তি: {link.iterations === 0 ? "∞" : link.iterations}</Badge>
-        </div>
-          <Tooltip>
-            <TooltipTrigger asChild>
-              <Button variant="outline" size="sm" onClick={() => startLoop(link.id)} disabled={isRunning || !link.enabled}>
-                <Repeat1 className="mr-2 size-4" />
-                এটি লুপ করুন
-              </Button>
-            </TooltipTrigger>
-            <TooltipContent>শুধুমাত্র এই লিঙ্কটি দিয়ে একটি একক লুপ শুরু করুন</TooltipContent>
-          </Tooltip>
-      </CardContent>
-    </Card>
-  );
+  const LinkCard = ({ link }: { link: LinkItem }) => {
+    const visits = linkVisitCount[link.id] || 0;
+    const isActive = activeLink?.id === link.id;
+    const effectiveInterval = settings.globalInterval > 0 ? settings.globalInterval : link.intervalSec;
+
+    return (
+        <Card className={cn("transition-all", isActive && "ring-2 ring-primary shadow-lg", !link.enabled && "opacity-50 bg-muted/50")}>
+          <CardHeader className="flex flex-row items-start justify-between gap-4 pb-2">
+            <div className="flex-1 overflow-hidden">
+              <CardTitle className="text-lg font-headline truncate">{link.title}</CardTitle>
+              <CardDescription className="truncate" title={link.url}>{link.url}</CardDescription>
+            </div>
+            <div className="flex items-center gap-1">
+              <Tooltip>
+                <TooltipTrigger asChild>
+                  <Button variant="ghost" size="icon" className="size-8" onClick={() => toggleLinkEnabled(link.id)} disabled={isRunning}>
+                    <Power className={cn("size-4", link.enabled ? "text-green-500" : "text-destructive")} />
+                  </Button>
+                </TooltipTrigger>
+                <TooltipContent>{link.enabled ? 'নিষ্ক্রিয় করুন' : 'সক্রিয় করুন'}</TooltipContent>
+              </Tooltip>
+              <Tooltip>
+                <TooltipTrigger asChild>
+                  <Button variant="ghost" size="icon" className="size-8" onClick={() => openEditDialog(link)} disabled={isRunning}>
+                    <Pencil className="size-4" />
+                  </Button>
+                </TooltipTrigger>
+                <TooltipContent>লিঙ্ক সম্পাদনা করুন</TooltipContent>
+              </Tooltip>
+              <Tooltip>
+                <TooltipTrigger asChild>
+                  <Button variant="ghost" size="icon" className="size-8 text-destructive" onClick={() => handleDeleteLink(link.id)} disabled={isRunning}>
+                    <Trash2 className="size-4" />
+                  </Button>
+                </TooltipTrigger>
+                <TooltipContent>লিঙ্ক মুছুন</TooltipContent>
+              </Tooltip>
+            </div>
+          </CardHeader>
+          <CardContent className="flex flex-col gap-3">
+              <div className="flex items-center justify-between text-sm text-muted-foreground">
+                  <div className="flex items-center gap-4">
+                      <Badge variant={isActive ? "default" : "secondary"} className="gap-1.5 pl-2">
+                          <Timer className="size-3.5" />
+                          বিরতি: {effectiveInterval} সেকেন্ড
+                      </Badge>
+                      <Badge variant={isActive ? "default" : "secondary"} className="gap-1.5 pl-2">
+                          <Repeat className="size-3.5" />
+                          পুনরাবৃত্তি: {isRunning ? `${visits} /` : ''} {link.iterations === 0 ? "∞" : link.iterations}
+                      </Badge>
+                  </div>
+                  <Tooltip>
+                      <TooltipTrigger asChild>
+                      <Button variant="outline" size="sm" onClick={() => startLoop(link.id)} disabled={isRunning || !link.enabled}>
+                          <Repeat1 className="mr-2 size-4" />
+                          এটি লুপ করুন
+                      </Button>
+                      </TooltipTrigger>
+                      <TooltipContent>শুধুমাত্র এই লিঙ্কটি দিয়ে একটি একক লুপ শুরু করুন</TooltipContent>
+                  </Tooltip>
+              </div>
+          </CardContent>
+        </Card>
+      );
+  }
 
   return (
     <TooltipProvider>
@@ -629,5 +657,7 @@ export default function ClickLoopPage() {
     </TooltipProvider>
   );
 }
+
+    
 
     
