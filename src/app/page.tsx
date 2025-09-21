@@ -6,7 +6,6 @@ import type { LinkItem, AppSettings, LogEntry } from "@/types";
 import { CycleMode } from "@/types";
 import { zodResolver } from "@hookform/resolvers/zod";
 import Image from "next/image";
-import Link from "next/link";
 import * as React from "react";
 import { useForm } from "react-hook-form";
 import { v4 as uuidv4 } from "uuid";
@@ -15,7 +14,6 @@ import type { z } from "zod";
 import { useToast } from "@/hooks/use-toast";
 import useLocalStorage from "@/hooks/use-local-storage";
 import { AddEditLinkDialog } from "@/components/add-edit-link-dialog";
-import { AiSuggesterDialog } from "@/components/ai-suggester-dialog";
 import { AppLogo } from "@/components/icons";
 import { LogViewerSheet } from "@/components/log-viewer-sheet";
 import { SettingsSheet } from "@/components/settings-sheet";
@@ -28,6 +26,15 @@ import {
   CardHeader,
   CardTitle,
 } from "@/components/ui/card";
+import {
+    Form,
+    FormControl,
+    FormField,
+    FormItem,
+    FormLabel,
+    FormMessage,
+  } from "@/components/ui/form";
+import { Input } from "@/components/ui/input";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import {
   Sidebar,
@@ -48,16 +55,13 @@ import { cn } from "@/lib/utils";
 import {
   Cog,
   History,
-  Info,
   Pause,
   Pencil,
   Play,
   Plus,
   Power,
-  Sparkles,
   Trash2,
   X,
-  Repeat,
   Repeat1,
   Loader2,
 } from "lucide-react";
@@ -67,6 +71,21 @@ import { addEditLinkSchema } from "@/lib/schemas";
 const emptyStateImage = PlaceHolderImages.find(
   (img) => img.id === "empty-state"
 )!;
+
+async function getUrlTitle(url: string): Promise<string> {
+    try {
+        const response = await fetch(`https://api.allorigins.win/get?url=${encodeURIComponent(url)}`);
+        const data = await response.json();
+        const text = data.contents;
+        if (!text) return '';
+        const matches = text.match(/<title>(.*?)<\/title>/);
+        return matches ? matches[1] : '';
+    } catch (error) {
+        console.error("Failed to fetch URL title:", error);
+        return '';
+    }
+}
+
 
 export default function ClickLoopPage() {
   const [links, setLinks] = useLocalStorage<LinkItem[]>("clickloop-links", []);
@@ -89,7 +108,7 @@ export default function ClickLoopPage() {
   React.useEffect(() => setIsClient(true), []);
 
   const [dialogOpen, setDialogOpen] = React.useState<
-    "edit" | "ai" | "settings" | "logs" | null
+    "edit" | "settings" | "logs" | null
   >(null);
   const [editingLink, setEditingLink] = React.useState<LinkItem | null>(null);
 
@@ -99,6 +118,46 @@ export default function ClickLoopPage() {
   const singleLoopLinkIdRef = React.useRef<string | null>(null);
 
   const { toast } = useToast();
+
+  const form = useForm<z.infer<typeof addEditLinkSchema>>({
+    resolver: zodResolver(addEditLinkSchema),
+    defaultValues: {
+      title: "",
+      url: "",
+      intervalSec: 5,
+      iterations: 0,
+    },
+  });
+
+  const handleAddLink = (data: z.infer<typeof addEditLinkSchema>) => {
+    const newLink: LinkItem = {
+      ...data,
+      id: uuidv4(),
+      enabled: true,
+    };
+    setLinks((prev) => [...prev, newLink]);
+    toast({
+      title: "লিঙ্ক যোগ করা হয়েছে",
+      description: `"${data.title}" আপনার তালিকায় যোগ করা হয়েছে।`,
+    });
+    form.reset();
+  };
+
+  const handleUrlBlur = async (e: React.FocusEvent<HTMLInputElement>) => {
+    const url = e.target.value;
+    const currentTitle = form.getValues('title');
+    if (url && !currentTitle) {
+      try {
+        const title = await getUrlTitle(url);
+        if (title) {
+          form.setValue('title', title, { shouldValidate: true });
+          toast({ title: "শিরোনাম প্রস্তাব করা হয়েছে", description: "আমরা URL এর উপর ভিত্তি করে একটি শিরোনাম প্রস্তাব করেছি।" });
+        }
+      } catch (error) {
+         // Silently fail
+      }
+    }
+  };
 
   const addLog = (entry: Omit<LogEntry, "timestamp">) => {
     setLogs((prev) => [
@@ -349,16 +408,78 @@ export default function ClickLoopPage() {
             </SidebarHeader>
 
             <SidebarContent className="p-0">
-              <div className="p-4">
-                <Button className="w-full" asChild>
-                  <Link href="/add-link">
-                    <Plus className="mr-2 size-4" />
-                    নতুন লিঙ্ক যোগ করুন
-                  </Link>
-                </Button>
-              </div>
+               <Card className="m-4">
+                <CardHeader>
+                    <CardTitle>নতুন লিঙ্ক যোগ করুন</CardTitle>
+                    <CardDescription>আপনার নতুন লিঙ্কের জন্য বিবরণ পূরণ করুন।</CardDescription>
+                </CardHeader>
+                <CardContent>
+                    <Form {...form}>
+                        <form onSubmit={form.handleSubmit(handleAddLink)} className="space-y-4">
+                            <FormField
+                            control={form.control}
+                            name="url"
+                            render={({ field }) => (
+                                <FormItem>
+                                <FormLabel>URL</FormLabel>
+                                <FormControl>
+                                    <Input placeholder="https://example.com" {...field} onBlur={handleUrlBlur}/>
+                                </FormControl>
+                                <FormMessage />
+                                </FormItem>
+                            )}
+                            />
+                            <FormField
+                            control={form.control}
+                            name="title"
+                            render={({ field }) => (
+                                <FormItem>
+                                <FormLabel>শিরোনাম</FormLabel>
+                                <FormControl>
+                                    <Input placeholder="যেমন, আমার পরীক্ষার পাতা" {...field} />
+                                </FormControl>
+                                <FormMessage />
+                                </FormItem>
+                            )}
+                            />
+                            <div className="grid grid-cols-2 gap-4">
+                            <FormField
+                                control={form.control}
+                                name="intervalSec"
+                                render={({ field }) => (
+                                <FormItem>
+                                    <FormLabel>বিরতি (সেকেন্ড)</FormLabel>
+                                    <FormControl>
+                                    <Input type="number" min="1" {...field} onChange={e => field.onChange(e.target.valueAsNumber)} />
+                                    </FormControl>
+                                    <FormMessage />
+                                </FormItem>
+                                )}
+                            />
+                            <FormField
+                                control={form.control}
+                                name="iterations"
+                                render={({ field }) => (
+                                <FormItem>
+                                    <FormLabel>পুনরাবৃত্তি (0=∞)</FormLabel>
+                                    <FormControl>
+                                    <Input type="number" min="0" {...field} onChange={e => field.onChange(e.target.valueAsNumber)}/>
+                                    </FormControl>
+                                    <FormMessage />
+                                </FormItem>
+                                )}
+                            />
+                            </div>
+                            <Button type="submit" className="w-full">
+                                <Plus className="mr-2 size-4" />
+                                লিঙ্ক যোগ করুন
+                            </Button>
+                        </form>
+                    </Form>
+                </CardContent>
+               </Card>
               <SidebarSeparator />
-              <ScrollArea className="h-[calc(100vh-250px)]">
+              <ScrollArea className="h-[calc(100vh-540px)]">
                 <div className="flex flex-col gap-3 p-4">
                   {isClient && links.length > 0 ? (
                     links.map(link => <LinkCard key={link.id} link={link} />)
@@ -445,13 +566,6 @@ export default function ClickLoopPage() {
                         </div>
                         <h2 className="text-3xl font-bold font-headline mb-2">ClickLoop এ স্বাগতম</h2>
                         <p className="max-w-md text-muted-foreground mb-6">আপনার প্রথম লিঙ্ক যোগ করে শুরু করুন।</p>
-                        <div className="flex gap-4">
-                            <Button asChild>
-                                <Link href="/add-link">
-                                    <Plus className="mr-2 size-4" /> লিঙ্ক যোগ করুন
-                                 </Link>
-                            </Button>
-                        </div>
                       </div>
                     ) : null}
                 </main>
@@ -468,20 +582,6 @@ export default function ClickLoopPage() {
         }}
         onSubmit={(data) => handleUpdateLink(editingLink!.id, data)}
         link={editingLink}
-      />
-      <AiSuggesterDialog 
-        isOpen={dialogOpen === "ai"}
-        onClose={() => setDialogOpen(null)}
-        onAddLink={(url) => {
-            setEditingLink({
-                id: '',
-                title: '',
-                url: url,
-                intervalSec: 5,
-                iterations: 0,
-                enabled: true
-            });
-        }}
       />
       <SettingsSheet 
         isOpen={dialogOpen === "settings"}
