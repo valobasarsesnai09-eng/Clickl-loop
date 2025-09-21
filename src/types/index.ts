@@ -9,7 +9,6 @@ export type LinkItem = z.infer<typeof addEditLinkSchema> & {
 export enum CycleMode {
   SEQUENTIAL = 'SEQUENTIAL',
   RANDOM = 'RANDOM',
-  SINGLE = 'SINGLE',
 }
 
 export type AppSettings = {

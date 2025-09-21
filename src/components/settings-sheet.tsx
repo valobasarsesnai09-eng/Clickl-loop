@@ -68,9 +68,9 @@ export function SettingsSheet({ isOpen, onClose, settings, onSettingsChange }: S
               <SelectContent>
                 <SelectItem value={CycleMode.SEQUENTIAL}>Sequential</SelectItem>
                 <SelectItem value={CycleMode.RANDOM}>Random</SelectItem>
-                <SelectItem value={CycleMode.SINGLE}>Single Link</SelectItem>
               </SelectContent>
             </Select>
+            <p className="text-xs text-muted-foreground">"Loop This" button on a link card will always run a single loop for that link only.</p>
           </div>
           <div className="grid gap-3">
             <Label htmlFor="global-interval">Global Interval Override (seconds)</Label>
@@ -91,7 +91,7 @@ export function SettingsSheet({ isOpen, onClose, settings, onSettingsChange }: S
               value={localSettings.maxTotalIterations}
               onChange={(e) => handleChange('maxTotalIterations', e.target.valueAsNumber || 1000)}
             />
-            <p className="text-xs text-muted-foreground">The loop will automatically stop after this many total iterations.</p>
+            <p className="text-xs text-muted-foreground">The loop will automatically stop after this many total iterations. Set to 0 for no limit.</p>
           </div>
         </div>
         <SheetFooter>

@@ -25,6 +25,7 @@ import {
   FormMessage,
 } from "@/components/ui/form";
 import { Input } from "@/components/ui/input";
+import { useToast } from "@/hooks/use-toast";
 
 type AddEditLinkDialogProps = {
   isOpen: boolean;
@@ -32,6 +33,24 @@ type AddEditLinkDialogProps = {
   onSubmit: (data: z.infer<typeof addEditLinkSchema>) => void;
   link: LinkItem | null;
 };
+
+async function getUrlTitle(url: string): Promise<string> {
+    try {
+        // This is a bit of a hack to get a title without a full backend.
+        // It fetches the HTML and parses the title tag.
+        // This won't work for pages that block CORS or are client-side rendered.
+        const response = await fetch(`https://api.allorigins.win/get?url=${encodeURIComponent(url)}`);
+        const data = await response.json();
+        const text = data.contents;
+        if (!text) return '';
+        const matches = text.match(/<title>(.*?)<\/title>/);
+        return matches ? matches[1] : '';
+    } catch (error) {
+        console.error("Failed to fetch URL title:", error);
+        return '';
+    }
+}
+
 
 export function AddEditLinkDialog({ isOpen, onClose, onSubmit, link }: AddEditLinkDialogProps) {
   const form = useForm<z.infer<typeof addEditLinkSchema>>({
@@ -43,17 +62,20 @@ export function AddEditLinkDialog({ isOpen, onClose, onSubmit, link }: AddEditLi
       iterations: 0,
     },
   });
+  const { toast } = useToast();
 
   React.useEffect(() => {
-    if (link) {
-      form.reset(link);
-    } else {
-      form.reset({
-        title: "",
-        url: "",
-        intervalSec: 5,
-        iterations: 0,
-      });
+    if (isOpen) {
+        if (link) {
+            form.reset(link);
+        } else {
+            form.reset({
+                title: "",
+                url: "",
+                intervalSec: 5,
+                iterations: 0,
+            });
+        }
     }
   }, [link, form, isOpen]);
 
@@ -62,17 +84,47 @@ export function AddEditLinkDialog({ isOpen, onClose, onSubmit, link }: AddEditLi
     form.reset();
   };
 
+  const handleUrlBlur = async (e: React.FocusEvent<HTMLInputElement>) => {
+    const url = e.target.value;
+    const currentTitle = form.getValues('title');
+    if (url && !currentTitle) {
+      try {
+        const title = await getUrlTitle(url);
+        if (title) {
+          form.setValue('title', title, { shouldValidate: true });
+          toast({ title: "Title Suggested", description: "We've suggested a title based on the URL." });
+        }
+      } catch (error) {
+         // Silently fail, user can enter title manually
+      }
+    }
+  };
+
+
   return (
-    <Dialog open={isOpen} onOpenChange={onClose}>
+    <Dialog open={isOpen} onOpenChange={(open) => { if (!open) onClose(); }}>
       <DialogContent className="sm:max-w-[425px]">
         <DialogHeader>
           <DialogTitle>{link ? "Edit Link" : "Add New Link"}</DialogTitle>
           <DialogDescription>
-            {link ? "Update the details of your link." : "Fill in the details for your new link."}
+            {link ? "Update the details of your link." : "Fill in the details for your new link. We'll try to fetch the title for you."}
           </DialogDescription>
         </DialogHeader>
         <Form {...form}>
           <form onSubmit={form.handleSubmit(handleFormSubmit)} className="space-y-4 py-4">
+            <FormField
+              control={form.control}
+              name="url"
+              render={({ field }) => (
+                <FormItem>
+                  <FormLabel>URL</FormLabel>
+                  <FormControl>
+                    <Input placeholder="https://example.com" {...field} onBlur={handleUrlBlur}/>
+                  </FormControl>
+                  <FormMessage />
+                </FormItem>
+              )}
+            />
             <FormField
               control={form.control}
               name="title"
@@ -86,19 +138,6 @@ export function AddEditLinkDialog({ isOpen, onClose, onSubmit, link }: AddEditLi
                 </FormItem>
               )}
             />
-            <FormField
-              control={form.control}
-              name="url"
-              render={({ field }) => (
-                <FormItem>
-                  <FormLabel>URL</FormLabel>
-                  <FormControl>
-                    <Input placeholder="https://example.com" {...field} />
-                  </FormControl>
-                  <FormMessage />
-                </FormItem>
-              )}
-            />
             <div className="grid grid-cols-2 gap-4">
               <FormField
                 control={form.control}
@@ -107,7 +146,7 @@ export function AddEditLinkDialog({ isOpen, onClose, onSubmit, link }: AddEditLi
                   <FormItem>
                     <FormLabel>Interval (sec)</FormLabel>
                     <FormControl>
-                      <Input type="number" min="1" {...field} />
+                      <Input type="number" min="1" {...field} onChange={e => field.onChange(e.target.valueAsNumber)} />
                     </FormControl>
                     <FormMessage />
                   </FormItem>
@@ -120,7 +159,7 @@ export function AddEditLinkDialog({ isOpen, onClose, onSubmit, link }: AddEditLi
                   <FormItem>
                     <FormLabel>Repeats (0=∞)</FormLabel>
                     <FormControl>
-                      <Input type="number" min="0" {...field} />
+                      <Input type="number" min="0" {...field} onChange={e => field.onChange(e.target.valueAsNumber)}/>
                     </FormControl>
                     <FormMessage />
                   </FormItem>

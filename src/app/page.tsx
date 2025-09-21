@@ -58,6 +58,7 @@ import {
   X,
   Repeat,
   Repeat1,
+  Loader2,
 } from "lucide-react";
 
 const emptyStateImage = PlaceHolderImages.find(
@@ -166,12 +167,12 @@ export default function ClickLoopPage() {
     }
     setIsRunning(false);
     setIsPaused(false);
-    setCurrentUrl("about:blank");
     setActiveLink(null);
     iterationCountRef.current = 0;
     currentLinkIndexRef.current = -1;
     singleLoopLinkIdRef.current = null;
     
+    // Don't reset currentUrl to about:blank immediately, let the user see the last page
     if (reason === "manual") addLog({ eventType: "STOP", message: "Loop stopped by user." });
     if (reason === "finished") addLog({ eventType: "FINISH", message: "All loop cycles completed." });
     if (reason === "error") addLog({ eventType: "ERROR", message: "Loop stopped due to an error." });
@@ -179,15 +180,22 @@ export default function ClickLoopPage() {
   };
 
   const startLoop = (singleLinkId: string | null = null) => {
-    if (links.filter(l => l.enabled).length === 0) {
+    const enabledLinks = links.filter(l => l.enabled);
+    if (enabledLinks.length === 0) {
         toast({ title: "No enabled links", description: "Please add and enable at least one link to start.", variant: "destructive" });
         return;
     }
     setIsRunning(true);
     setIsPaused(false);
     iterationCountRef.current = 0;
-    currentLinkIndexRef.current = -1;
+    
+    const relevantLinks = singleLinkId ? enabledLinks.filter(l => l.id === singleLinkId) : enabledLinks;
+    const initialIndex = singleLinkId ? -1 : (settings.mode === CycleMode.RANDOM ? Math.floor(Math.random() * relevantLinks.length) -1 : -1) ;
+    currentLinkIndexRef.current = initialIndex;
+
     singleLoopLinkIdRef.current = singleLinkId;
+    setCurrentUrl('about:blank');
+    setActiveLink(null);
 
     if(settings.mode === CycleMode.SINGLE && singleLinkId){
       const link = links.find(l => l.id === singleLinkId);
@@ -218,13 +226,18 @@ export default function ClickLoopPage() {
     }
 
     const runCycle = () => {
-        const enabledLinks = links.filter(l => l.enabled);
+        let enabledLinks = links.filter(l => l.enabled);
+        if(singleLoopLinkIdRef.current) {
+            enabledLinks = enabledLinks.filter(l => l.id === singleLoopLinkIdRef.current);
+        }
+
         if(enabledLinks.length === 0){
+            addLog({ eventType: "FINISH", message: "No enabled links to run." });
             stopLoop("finished");
             return;
         }
 
-        if (iterationCountRef.current >= settings.maxTotalIterations) {
+        if (settings.maxTotalIterations > 0 && iterationCountRef.current >= settings.maxTotalIterations) {
             addLog({ eventType: "FINISH", message: `Max total iterations (${settings.maxTotalIterations}) reached.` });
             stopLoop("finished");
             return;
@@ -232,19 +245,11 @@ export default function ClickLoopPage() {
 
         let nextLink: LinkItem | undefined;
 
-        if (settings.mode === CycleMode.SINGLE) {
-            if (singleLoopLinkIdRef.current) {
-                nextLink = enabledLinks.find(l => l.id === singleLoopLinkIdRef.current);
-            }
-            if (!nextLink) { // Fallback if specified link is disabled or not found
-                currentLinkIndexRef.current = (currentLinkIndexRef.current + 1) % enabledLinks.length;
-                nextLink = enabledLinks[currentLinkIndexRef.current];
-            }
-        } else if (settings.mode === CycleMode.RANDOM) {
+        if (settings.mode === CycleMode.RANDOM && !singleLoopLinkIdRef.current) {
             const randomIndex = Math.floor(Math.random() * enabledLinks.length);
-            currentLinkIndexRef.current = randomIndex;
             nextLink = enabledLinks[randomIndex];
-        } else { // SEQUENTIAL
+            currentLinkIndexRef.current = links.findIndex(l => l.id === nextLink?.id);
+        } else { // SEQUENTIAL or SINGLE
             currentLinkIndexRef.current = (currentLinkIndexRef.current + 1) % enabledLinks.length;
             nextLink = enabledLinks[currentLinkIndexRef.current];
         }
@@ -254,14 +259,14 @@ export default function ClickLoopPage() {
             addLog({ eventType: "ERROR", message: "Could not determine next link." });
             return;
         }
-
+        
         const linkIterations = nextLink.iterations;
-        if (linkIterations > 0) {
+        if (linkIterations > 0 && !singleLoopLinkIdRef.current) { // Don't check iterations for single link loops
             const completedCyclesForLink = Math.floor(iterationCountRef.current / enabledLinks.length);
             if (completedCyclesForLink >= linkIterations) {
-                // For simplicity, we just stop. A more complex logic could skip this link.
-                addLog({eventType: 'FINISH', message: `Max iterations for "${nextLink.title}" reached.`});
-                stopLoop("finished");
+                // Skip this link if it has reached its iteration count
+                addLog({eventType: 'INFO', message: `Max iterations for "${nextLink.title}" reached. Skipping.`});
+                runCycle();
                 return;
             }
         }
@@ -276,7 +281,9 @@ export default function ClickLoopPage() {
         loopTimeoutRef.current = setTimeout(runCycle, interval);
     };
 
-    loopTimeoutRef.current = setTimeout(runCycle, 100);
+    // Initial delay before starting the first cycle
+    const initialDelay = currentUrl === 'about:blank' ? 100 : 0;
+    loopTimeoutRef.current = setTimeout(runCycle, initialDelay);
 
     return () => {
         if (loopTimeoutRef.current) {
@@ -287,16 +294,16 @@ export default function ClickLoopPage() {
 
 
   const LinkCard = ({ link }: { link: LinkItem }) => (
-    <Card className={cn("transition-all", !link.enabled && "opacity-50 bg-muted/50")}>
+    <Card className={cn("transition-all", activeLink?.id === link.id && "ring-2 ring-primary", !link.enabled && "opacity-50 bg-muted/50")}>
       <CardHeader className="flex flex-row items-start justify-between gap-4 pb-2">
-        <div className="flex-1">
-          <CardTitle className="text-lg font-headline">{link.title}</CardTitle>
-          <CardDescription className="truncate w-48" title={link.url}>{link.url}</CardDescription>
+        <div className="flex-1 overflow-hidden">
+          <CardTitle className="text-lg font-headline truncate">{link.title}</CardTitle>
+          <CardDescription className="truncate" title={link.url}>{link.url}</CardDescription>
         </div>
         <div className="flex items-center gap-1">
           <Tooltip>
             <TooltipTrigger asChild>
-              <Button variant="ghost" size="icon" className="size-8" onClick={() => toggleLinkEnabled(link.id)}>
+              <Button variant="ghost" size="icon" className="size-8" onClick={() => toggleLinkEnabled(link.id)} disabled={isRunning}>
                 <Power className={cn("size-4", link.enabled ? "text-green-500" : "text-destructive")} />
               </Button>
             </TooltipTrigger>
@@ -304,7 +311,7 @@ export default function ClickLoopPage() {
           </Tooltip>
           <Tooltip>
             <TooltipTrigger asChild>
-              <Button variant="ghost" size="icon" className="size-8" onClick={() => openEditDialog(link)}>
+              <Button variant="ghost" size="icon" className="size-8" onClick={() => openEditDialog(link)} disabled={isRunning}>
                 <Pencil className="size-4" />
               </Button>
             </TooltipTrigger>
@@ -312,7 +319,7 @@ export default function ClickLoopPage() {
           </Tooltip>
           <Tooltip>
             <TooltipTrigger asChild>
-              <Button variant="ghost" size="icon" className="size-8 text-destructive" onClick={() => handleDeleteLink(link.id)}>
+              <Button variant="ghost" size="icon" className="size-8 text-destructive" onClick={() => handleDeleteLink(link.id)} disabled={isRunning}>
                 <Trash2 className="size-4" />
               </Button>
             </TooltipTrigger>
@@ -325,17 +332,15 @@ export default function ClickLoopPage() {
           <Badge variant="secondary">Interval: {link.intervalSec}s</Badge>
           <Badge variant="secondary">Repeats: {link.iterations === 0 ? "∞" : link.iterations}</Badge>
         </div>
-        {settings.mode === CycleMode.SINGLE && 
           <Tooltip>
             <TooltipTrigger asChild>
-              <Button variant="outline" size="sm" onClick={() => startLoop(link.id)} disabled={isRunning}>
+              <Button variant="outline" size="sm" onClick={() => startLoop(link.id)} disabled={isRunning || !link.enabled}>
                 <Repeat1 className="mr-2 size-4" />
                 Loop This
               </Button>
             </TooltipTrigger>
-            <TooltipContent>Start a single loop with this link</TooltipContent>
+            <TooltipContent>Start a single loop with just this link</TooltipContent>
           </Tooltip>
-        }
       </CardContent>
     </Card>
   );
@@ -362,7 +367,14 @@ export default function ClickLoopPage() {
               <SidebarSeparator />
               <ScrollArea className="h-[calc(100vh-250px)]">
                 <div className="flex flex-col gap-3 p-4">
-                  {isClient && links.map(link => <LinkCard key={link.id} link={link} />)}
+                  {isClient && links.length > 0 ? (
+                    links.map(link => <LinkCard key={link.id} link={link} />)
+                  ) : isClient ? (
+                    <div className="text-center text-muted-foreground p-8">
+                        <p>No links yet.</p>
+                        <p className="text-sm">Add a link to get started.</p>
+                    </div>
+                  ) : null }
                 </div>
               </ScrollArea>
             </SidebarContent>
@@ -372,9 +384,9 @@ export default function ClickLoopPage() {
             <SidebarFooter className="p-4 gap-4">
               {isRunning && activeLink && (
                   <div className="p-3 rounded-lg bg-accent/50 text-accent-foreground text-sm">
-                      <p className="font-bold truncate">{activeLink.title}</p>
+                      <p className="font-bold truncate">Current: {activeLink.title}</p>
                       <p className="text-xs text-muted-foreground">
-                          Total Iterations: {iterationCountRef.current} / {settings.maxTotalIterations}
+                          Total Iterations: {iterationCountRef.current} / {settings.maxTotalIterations > 0 ? settings.maxTotalIterations : '∞'}
                       </p>
                   </div>
               )}
@@ -412,15 +424,25 @@ export default function ClickLoopPage() {
                     </Button>
                 </header>
                 <main className="flex-1 bg-muted/20 relative">
-                    {isClient && links.length > 0 ? (
-                        <iframe
-                            key={currentUrl}
-                            src={currentUrl}
-                            className="w-full h-full border-0"
-                            title="ClickLoop Target"
-                            sandbox="allow-forms allow-modals allow-pointer-lock allow-popups allow-popups-to-escape-sandbox allow-same-origin allow-scripts allow-presentation"
-                        ></iframe>
-                    ) : isClient && (
+                    {isClient && (links.length > 0 || isRunning) ? (
+                        <>
+                           {currentUrl !== 'about:blank' &&  
+                            <iframe
+                                key={currentUrl}
+                                src={currentUrl}
+                                className="w-full h-full border-0"
+                                title="ClickLoop Target"
+                                sandbox="allow-forms allow-modals allow-pointer-lock allow-popups allow-popups-to-escape-sandbox allow-same-origin allow-scripts allow-presentation"
+                            ></iframe>
+                           }
+                            {(isRunning && currentUrl === 'about:blank') && 
+                                <div className="absolute inset-0 bg-background/80 flex flex-col items-center justify-center gap-4">
+                                    <Loader2 className="size-8 animate-spin text-primary" />
+                                    <p className="text-muted-foreground">Preparing loop...</p>
+                                </div>
+                            }
+                        </>
+                    ) : isClient ? (
                       <div className="flex flex-col items-center justify-center h-full text-center p-8">
                         <div className="relative w-full max-w-lg aspect-video mb-8">
                             <Image 
@@ -442,8 +464,7 @@ export default function ClickLoopPage() {
                             </Button>
                         </div>
                       </div>
-                    )}
-                    {isRunning && !activeLink && <div className="absolute inset-0 bg-background/80 flex items-center justify-center"><p>Preparing loop...</p></div>}
+                    ) : null}
                 </main>
             </div>
           </SidebarInset>
