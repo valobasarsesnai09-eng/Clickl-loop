@@ -207,6 +207,7 @@ export default function ClickLoopPage() {
     setIsRunning(false);
     setIsPaused(false);
     setActiveLink(null);
+    setCurrentUrl("about:blank");
     iterationCountRef.current = 0;
     currentLinkIndexRef.current = -1;
     singleLoopLinkIdRef.current = null;
@@ -547,7 +548,7 @@ export default function ClickLoopPage() {
                             </div>
                         }
                     </>
-                ) : isClient ? (
+                ) : isClient && links.length === 0 ? (
                   <div className="flex flex-col items-center justify-center h-full text-center p-8">
                     <div className="relative w-full max-w-lg aspect-video mb-8">
                         <Image 
@@ -590,3 +591,5 @@ export default function ClickLoopPage() {
     </TooltipProvider>
   );
 }
+
+    
