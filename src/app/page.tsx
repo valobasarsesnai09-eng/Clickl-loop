@@ -73,7 +73,6 @@ export default function ClickLoopPage() {
       mode: CycleMode.SEQUENTIAL,
       globalInterval: 0,
       maxTotalIterations: 1000,
-      userAgent: "",
     }
   );
   const [logs, setLogs] = useLocalStorage<LogEntry[]>("clickloop-logs", []);
@@ -182,7 +181,7 @@ export default function ClickLoopPage() {
   const startLoop = (singleLinkId: string | null = null) => {
     const enabledLinks = links.filter(l => l.enabled);
     if (enabledLinks.length === 0) {
-        toast({ title: "কোনো সক্রিয় লিঙ্ক নেই", description: "শুরু করতে অনুগ্রহ করে至少 একটি লিঙ্ক যোগ এবং সক্রিয় করুন।", variant: "destructive" });
+        toast({ title: "কোনো সক্রিয় লিঙ্ক নেই", description: "শুরু করতে অনুগ্রহ করে অন্তত একটি লিঙ্ক যোগ এবং সক্রিয় করুন।", variant: "destructive" });
         return;
     }
     setIsRunning(true);
@@ -222,6 +221,7 @@ export default function ClickLoopPage() {
   
   React.useEffect(() => {
     if (!isRunning || isPaused) {
+        if(loopTimeoutRef.current) clearTimeout(loopTimeoutRef.current);
         return;
     }
 
@@ -261,14 +261,18 @@ export default function ClickLoopPage() {
         }
         
         const linkIterations = nextLink.iterations;
-        if (linkIterations > 0 && !singleLoopLinkIdRef.current) { // Don't check iterations for single link loops
-            const completedCyclesForLink = Math.floor(iterationCountRef.current / enabledLinks.length);
-            if (completedCyclesForLink >= linkIterations) {
-                // Skip this link if it has reached its iteration count
-                addLog({eventType: 'INFO', message: `"${nextLink.title}" এর জন্য সর্বোচ্চ পুনরাবৃত্তি সম্পন্ন হয়েছে। এড়িয়ে যাওয়া হচ্ছে।`});
-                runCycle();
-                return;
+        
+        const completedCyclesForThisLink = enabledLinks.reduce((acc, link) => {
+            if(link.id === nextLink!.id) {
+               return acc + 1;
             }
+            return acc;
+        }, 0);
+
+        if (linkIterations > 0 && !singleLoopLinkIdRef.current && completedCyclesForThisLink > linkIterations) {
+             addLog({eventType: 'INFO', message: `"${nextLink.title}" এর জন্য সর্বোচ্চ পুনরাবৃত্তি সম্পন্ন হয়েছে। এড়িয়ে যাওয়া হচ্ছে।`});
+             runCycle(); // Skip to the next link
+             return;
         }
 
         iterationCountRef.current++;
@@ -290,7 +294,7 @@ export default function ClickLoopPage() {
             clearTimeout(loopTimeoutRef.current);
         }
     };
-}, [isRunning, isPaused, links, settings]);
+}, [isRunning, isPaused, links, settings, stopLoop]);
 
 
   const LinkCard = ({ link }: { link: LinkItem }) => (
@@ -510,3 +514,5 @@ export default function ClickLoopPage() {
     </TooltipProvider>
   );
 }
+
+    
