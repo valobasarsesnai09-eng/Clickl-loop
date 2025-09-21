@@ -478,11 +478,11 @@ export default function ClickLoopPage() {
           <CardContent className="flex flex-col gap-3">
               <div className="flex items-center justify-between text-sm text-muted-foreground">
                   <div className="flex items-center gap-4">
-                      <Badge variant={isActive ? "primary" : "secondary"} className="gap-1.5 pl-2">
+                      <Badge variant={isActive ? "default" : "secondary"} className="gap-1.5 pl-2">
                           <Timer className="size-3.5" />
                           বিরতি: {effectiveInterval} সেকেন্ড
                       </Badge>
-                      <Badge variant={isActive ? "primary" : "secondary"} className="gap-1.5 pl-2">
+                      <Badge variant={isActive ? "default" : "secondary"} className="gap-1.5 pl-2">
                           <Repeat className="size-3.5" />
                           পুনরাবৃত্তি: {isRunning ? `${visits} /` : ''} {link.iterations === 0 ? "∞" : link.iterations}
                       </Badge>
