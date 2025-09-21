@@ -392,10 +392,20 @@ export default function ClickLoopPage() {
       <div className="min-h-screen grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3">
         {/* Left Column: Controls & Links */}
         <div className="lg:col-span-1 md:col-span-1 bg-card flex flex-col h-screen">
-            <header className="p-4 border-b">
+            <header className="p-4 border-b flex items-center justify-between">
               <div className="flex items-center gap-3">
                 <AppLogo className="size-8 text-primary" />
                 <h1 className="text-2xl font-bold font-headline">ClickLoop</h1>
+              </div>
+              <div className="flex items-center gap-2">
+                <Button variant="outline" size="icon" onClick={() => setDialogOpen("logs")}>
+                    <History />
+                    <span className="sr-only">লগ দেখুন</span>
+                </Button>
+                <Button variant="outline" size="icon" onClick={() => setDialogOpen("settings")}>
+                    <Cog />
+                    <span className="sr-only">সেটিংস</span>
+                </Button>
               </div>
             </header>
 
@@ -517,17 +527,7 @@ export default function ClickLoopPage() {
         </div>
         
         {/* Right Column: Iframe and Welcome */}
-        <div className="lg:col-span-2 md:col-span-1 flex flex-col h-screen">
-            <header className="flex items-center justify-end p-4 gap-2 border-b">
-                <Button variant="outline" size="icon" onClick={() => setDialogOpen("logs")}>
-                    <History />
-                    <span className="sr-only">লগ দেখুন</span>
-                </Button>
-                <Button variant="outline" size="icon" onClick={() => setDialogOpen("settings")}>
-                    <Cog />
-                    <span className="sr-only">সেটিংস</span>
-                </Button>
-            </header>
+        <div className="lg:col-span-2 md:col-span-1 flex flex-col h-screen border-l">
             <main className="flex-1 bg-muted/20 relative">
                 {isClient && (links.length > 0 || isRunning) ? (
                     <>
