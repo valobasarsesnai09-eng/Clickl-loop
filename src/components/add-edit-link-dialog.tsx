@@ -36,9 +36,6 @@ type AddEditLinkDialogProps = {
 
 async function getUrlTitle(url: string): Promise<string> {
     try {
-        // This is a bit of a hack to get a title without a full backend.
-        // It fetches the HTML and parses the title tag.
-        // This won't work for pages that block CORS or are client-side rendered.
         const response = await fetch(`https://api.allorigins.win/get?url=${encodeURIComponent(url)}`);
         const data = await response.json();
         const text = data.contents;

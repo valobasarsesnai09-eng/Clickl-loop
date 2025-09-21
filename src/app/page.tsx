@@ -3,9 +3,9 @@
 import { PlaceHolderImages } from "@/lib/placeholder-images";
 import type { LinkItem, AppSettings, LogEntry } from "@/types";
 import { CycleMode } from "@/types";
-import { addEditLinkSchema } from "@/lib/schemas";
 import { zodResolver } from "@hookform/resolvers/zod";
 import Image from "next/image";
+import Link from "next/link";
 import * as React from "react";
 import { useForm } from "react-hook-form";
 import { v4 as uuidv4 } from "uuid";
@@ -60,6 +60,8 @@ import {
   Repeat1,
   Loader2,
 } from "lucide-react";
+import { addEditLinkSchema } from "@/lib/schemas";
+
 
 const emptyStateImage = PlaceHolderImages.find(
   (img) => img.id === "empty-state"
@@ -86,7 +88,7 @@ export default function ClickLoopPage() {
   React.useEffect(() => setIsClient(true), []);
 
   const [dialogOpen, setDialogOpen] = React.useState<
-    "add" | "edit" | "ai" | "settings" | "logs" | null
+    "edit" | "ai" | "settings" | "logs" | null
   >(null);
   const [editingLink, setEditingLink] = React.useState<LinkItem | null>(null);
 
@@ -103,21 +105,7 @@ export default function ClickLoopPage() {
       ...prev,
     ]);
   };
-
-  const handleAddLink = (data: z.infer<typeof addEditLinkSchema>) => {
-    const newLink: LinkItem = {
-      ...data,
-      id: uuidv4(),
-      enabled: true,
-    };
-    setLinks((prev) => [...prev, newLink]);
-    toast({
-      title: "লিঙ্ক যোগ করা হয়েছে",
-      description: `"${data.title}" আপনার তালিকায় যোগ করা হয়েছে।`,
-    });
-    setDialogOpen(null);
-  };
-
+  
   const handleUpdateLink = (
     id: string,
     data: z.infer<typeof addEditLinkSchema>
@@ -171,7 +159,6 @@ export default function ClickLoopPage() {
     currentLinkIndexRef.current = -1;
     singleLoopLinkIdRef.current = null;
     
-    // Don't reset currentUrl to about:blank immediately, let the user see the last page
     if (reason === "manual") addLog({ eventType: "STOP", message: "ব্যবহারকারী লুপ বন্ধ করেছেন।" });
     if (reason === "finished") addLog({ eventType: "FINISH", message: "সমস্ত লুপ চক্র সম্পন্ন হয়েছে।" });
     if (reason === "error") addLog({ eventType: "ERROR", message: "ত্রুটির কারণে লুপ বন্ধ হয়ে গেছে।" });
@@ -249,7 +236,7 @@ export default function ClickLoopPage() {
             const randomIndex = Math.floor(Math.random() * enabledLinks.length);
             nextLink = enabledLinks[randomIndex];
             currentLinkIndexRef.current = links.findIndex(l => l.id === nextLink?.id);
-        } else { // SEQUENTIAL or SINGLE
+        } else { 
             currentLinkIndexRef.current = (currentLinkIndexRef.current + 1) % enabledLinks.length;
             nextLink = enabledLinks[currentLinkIndexRef.current];
         }
@@ -271,7 +258,7 @@ export default function ClickLoopPage() {
 
         if (linkIterations > 0 && !singleLoopLinkIdRef.current && completedCyclesForThisLink > linkIterations) {
              addLog({eventType: 'INFO', message: `"${nextLink.title}" এর জন্য সর্বোচ্চ পুনরাবৃত্তি সম্পন্ন হয়েছে। এড়িয়ে যাওয়া হচ্ছে।`});
-             runCycle(); // Skip to the next link
+             runCycle(); 
              return;
         }
 
@@ -285,7 +272,6 @@ export default function ClickLoopPage() {
         loopTimeoutRef.current = setTimeout(runCycle, interval);
     };
 
-    // Initial delay before starting the first cycle
     const initialDelay = currentUrl === 'about:blank' ? 100 : 0;
     loopTimeoutRef.current = setTimeout(runCycle, initialDelay);
 
@@ -294,7 +280,7 @@ export default function ClickLoopPage() {
             clearTimeout(loopTimeoutRef.current);
         }
     };
-}, [isRunning, isPaused, links, settings, stopLoop]);
+  }, [isRunning, isPaused, links, settings]);
 
 
   const LinkCard = ({ link }: { link: LinkItem }) => (
@@ -363,9 +349,11 @@ export default function ClickLoopPage() {
 
             <SidebarContent className="p-0">
               <div className="p-4">
-                <Button className="w-full" onClick={() => setDialogOpen("add")}>
-                  <Plus className="mr-2 size-4" />
-                  নতুন লিঙ্ক যোগ করুন
+                <Button className="w-full" asChild>
+                  <Link href="/add-link">
+                    <Plus className="mr-2 size-4" />
+                    নতুন লিঙ্ক যোগ করুন
+                  </Link>
                 </Button>
               </div>
               <SidebarSeparator />
@@ -460,8 +448,10 @@ export default function ClickLoopPage() {
                         <h2 className="text-3xl font-bold font-headline mb-2">ClickLoop এ স্বাগতম</h2>
                         <p className="max-w-md text-muted-foreground mb-6">আপনার প্রথম লিঙ্ক যোগ করে শুরু করুন, অথবা আপনার লুপের জন্য বিষয়বস্তু প্রস্তাব করার জন্য আমাদের AI সহকারী ব্যবহার করুন।</p>
                         <div className="flex gap-4">
-                            <Button onClick={() => setDialogOpen("add")}>
-                                <Plus className="mr-2 size-4" /> লিঙ্ক যোগ করুন
+                            <Button asChild>
+                                <Link href="/add-link">
+                                    <Plus className="mr-2 size-4" /> লিঙ্ক যোগ করুন
+                                 </Link>
                             </Button>
                             <Button variant="outline" onClick={() => setDialogOpen("ai")}>
                                 <Sparkles className="mr-2 size-4" /> AI সাজেশন
@@ -476,19 +466,18 @@ export default function ClickLoopPage() {
       </SidebarProvider>
 
       <AddEditLinkDialog
-        isOpen={dialogOpen === "add" || dialogOpen === "edit"}
+        isOpen={dialogOpen === "edit"}
         onClose={() => {
           setDialogOpen(null);
           setEditingLink(null);
         }}
-        onSubmit={dialogOpen === "add" ? handleAddLink : (data) => handleUpdateLink(editingLink!.id, data)}
+        onSubmit={(data) => handleUpdateLink(editingLink!.id, data)}
         link={editingLink}
       />
       <AiSuggesterDialog 
         isOpen={dialogOpen === "ai"}
         onClose={() => setDialogOpen(null)}
         onAddLink={(url) => {
-            setDialogOpen('add');
             setEditingLink({
                 id: '',
                 title: '',
@@ -514,5 +503,3 @@ export default function ClickLoopPage() {
     </TooltipProvider>
   );
 }
-
-    

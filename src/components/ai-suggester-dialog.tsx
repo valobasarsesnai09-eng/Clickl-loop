@@ -15,6 +15,7 @@ import { Label } from "@/components/ui/label";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { useToast } from "@/hooks/use-toast";
 import { Loader2, Plus, Sparkles } from "lucide-react";
+import { useRouter } from "next/navigation";
 import * as React from "react";
 
 type AiSuggesterDialogProps = {
@@ -28,6 +29,7 @@ export function AiSuggesterDialog({ isOpen, onClose, onAddLink }: AiSuggesterDia
   const [isLoading, setIsLoading] = React.useState(false);
   const [suggestions, setSuggestions] = React.useState<string[]>([]);
   const { toast } = useToast();
+  const router = useRouter();
 
   const handleSuggest = async () => {
     if (!topic) {
@@ -56,7 +58,7 @@ export function AiSuggesterDialog({ isOpen, onClose, onAddLink }: AiSuggesterDia
   };
   
   const handleAddClick = (url: string) => {
-    onAddLink(url);
+    router.push(`/add-link?url=${encodeURIComponent(url)}`);
     onClose();
   }
 
