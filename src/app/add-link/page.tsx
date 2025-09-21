@@ -5,7 +5,7 @@ import { zodResolver } from "@hookform/resolvers/zod";
 import { useForm } from "react-hook-form";
 import type { z } from "zod";
 import * as React from "react";
-import { useRouter } from "next/navigation";
+import { useRouter, useSearchParams } from "next/navigation";
 import { v4 as uuidv4 } from "uuid";
 
 import { addEditLinkSchema } from "@/lib/schemas";
@@ -43,6 +43,7 @@ async function getUrlTitle(url: string): Promise<string> {
 
 export default function AddLinkPage() {
   const router = useRouter();
+  const searchParams = useSearchParams();
   const [links, setLinks] = useLocalStorage<LinkItem[]>("clickloop-links", []);
   const { toast } = useToast();
 
@@ -50,7 +51,7 @@ export default function AddLinkPage() {
     resolver: zodResolver(addEditLinkSchema),
     defaultValues: {
       title: "",
-      url: "",
+      url: searchParams.get('url') || "",
       intervalSec: 5,
       iterations: 0,
     },
@@ -85,6 +86,25 @@ export default function AddLinkPage() {
       }
     }
   };
+
+  React.useEffect(() => {
+    const url = searchParams.get('url');
+    const title = form.getValues('title');
+    if (url && !title) {
+      const fetchTitle = async () => {
+        try {
+          const fetchedTitle = await getUrlTitle(url);
+          if (fetchedTitle) {
+            form.setValue('title', fetchedTitle, { shouldValidate: true });
+            toast({ title: "শিরোনাম প্রস্তাব করা হয়েছে", description: "আমরা URL এর উপর ভিত্তি করে একটি শিরোনাম প্রস্তাব করেছি।" });
+          }
+        } catch (error) {
+          // Silently fail
+        }
+      };
+      fetchTitle();
+    }
+  }, [searchParams, form, toast]);
 
   return (
     <div className="flex min-h-screen items-center justify-center bg-muted/40 p-4">
@@ -166,3 +186,5 @@ export default function AddLinkPage() {
     </div>
   );
 }
+
+    

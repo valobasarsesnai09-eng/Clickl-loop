@@ -1,3 +1,4 @@
+
 "use client";
 
 import { PlaceHolderImages } from "@/lib/placeholder-images";
@@ -405,9 +406,6 @@ export default function ClickLoopPage() {
           <SidebarInset>
             <div className="flex flex-col h-screen">
                 <header className="flex items-center justify-end p-4 gap-2 border-b">
-                    <Button variant="outline" size="icon" onClick={() => setDialogOpen("ai")}>
-                        <Sparkles />
-                    </Button>
                     <Button variant="outline" size="icon" onClick={() => setDialogOpen("logs")}>
                         <History />
                     </Button>
@@ -446,15 +444,12 @@ export default function ClickLoopPage() {
                             />
                         </div>
                         <h2 className="text-3xl font-bold font-headline mb-2">ClickLoop এ স্বাগতম</h2>
-                        <p className="max-w-md text-muted-foreground mb-6">আপনার প্রথম লিঙ্ক যোগ করে শুরু করুন, অথবা আপনার লুপের জন্য বিষয়বস্তু প্রস্তাব করার জন্য আমাদের AI সহকারী ব্যবহার করুন।</p>
+                        <p className="max-w-md text-muted-foreground mb-6">আপনার প্রথম লিঙ্ক যোগ করে শুরু করুন।</p>
                         <div className="flex gap-4">
                             <Button asChild>
                                 <Link href="/add-link">
                                     <Plus className="mr-2 size-4" /> লিঙ্ক যোগ করুন
                                  </Link>
-                            </Button>
-                            <Button variant="outline" onClick={() => setDialogOpen("ai")}>
-                                <Sparkles className="mr-2 size-4" /> AI সাজেশন
                             </Button>
                         </div>
                       </div>
@@ -503,3 +498,5 @@ export default function ClickLoopPage() {
     </TooltipProvider>
   );
 }
+
+    
