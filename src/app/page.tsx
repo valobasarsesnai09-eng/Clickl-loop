@@ -238,82 +238,81 @@ export default function ClickLoopPage() {
   const runCycle = React.useCallback(() => {
     if (isPaused) return;
 
-    // Use latest state directly from refs and function arguments where possible
-    const currentLinks = links;
-    const currentSettings = settings;
+    const getNextLink = (): LinkItem | null => {
+        const currentLinks = links; 
+        const currentSettings = settings;
 
-    let availableLinks = currentLinks.filter(l => l.enabled);
-    if (singleLoopLinkIdRef.current) {
-      availableLinks = availableLinks.filter(l => l.id === singleLoopLinkIdRef.current);
-    } else {
-      // Filter based on iteration limits
-      availableLinks = availableLinks.filter(l => {
-        if (l.iterations === 0) return true;
-        const visitedCount = linkVisitCount[l.id] || 0;
-        return visitedCount < l.iterations;
-      });
-    }
-    
-    if (availableLinks.length === 0) {
-      addLog({ eventType: "FINISH", message: "চালানোর জন্য কোনো সক্রিয় লিঙ্ক নেই বা সমস্ত পুনরাবৃত্তি সম্পন্ন হয়েছে।" });
-      stopLoop("finished");
-      return;
-    }
-    
-    if (currentSettings.maxTotalIterations > 0 && iterationCountRef.current >= currentSettings.maxTotalIterations) {
-      addLog({ eventType: "FINISH", message: `সর্বোচ্চ পুনরাবৃত্তি (${currentSettings.maxTotalIterations}) সংখ্যায় পৌঁছেছে।` });
-      stopLoop("finished");
-      return;
+        let availableLinks = currentLinks.filter(l => l.enabled);
+
+        if (singleLoopLinkIdRef.current) {
+            availableLinks = availableLinks.filter(l => l.id === singleLoopLinkIdRef.current);
+        } else {
+             availableLinks = availableLinks.filter(l => {
+                if (l.iterations === 0) return true;
+                const visitedCount = linkVisitCount[l.id] || 0;
+                return visitedCount < l.iterations;
+            });
+        }
+
+        if (availableLinks.length === 0) {
+            return null;
+        }
+
+        if (currentSettings.maxTotalIterations > 0 && iterationCountRef.current >= currentSettings.maxTotalIterations) {
+            addLog({ eventType: "FINISH", message: `সর্বোচ্চ পুনরাবৃত্তি (${currentSettings.maxTotalIterations}) সংখ্যায় পৌঁছেছে।` });
+            return null;
+        }
+
+        let nextLink: LinkItem | undefined;
+        if (currentSettings.mode === CycleMode.RANDOM && !singleLoopLinkIdRef.current) {
+            const randomIndex = Math.floor(Math.random() * availableLinks.length);
+            nextLink = availableLinks[randomIndex];
+            // Find the index in the original links array to keep track
+            const originalIndex = links.findIndex(l => l.id === nextLink?.id);
+            if (originalIndex !== -1) {
+                currentLinkIndexRef.current = originalIndex;
+            }
+        } else { // SEQUENTIAL or SINGLE
+            let nextIndex = currentLinkIndexRef.current;
+            const allPossibleLinks = singleLoopLinkIdRef.current ? links.filter(l => l.id === singleLoopLinkIdRef.current) : links;
+            
+            for (let i = 0; i < allPossibleLinks.length; i++) {
+                nextIndex = (nextIndex + 1) % allPossibleLinks.length;
+                const potentialLink = allPossibleLinks[nextIndex];
+                if (availableLinks.some(l => l.id === potentialLink.id)) {
+                    nextLink = potentialLink;
+                    currentLinkIndexRef.current = nextIndex;
+                    break;
+                }
+            }
+        }
+        return nextLink || null;
     }
 
-    let nextLink: LinkItem | undefined;
-    if (currentSettings.mode === CycleMode.RANDOM && !singleLoopLinkIdRef.current) {
-      const randomIndex = Math.floor(Math.random() * availableLinks.length);
-      nextLink = availableLinks[randomIndex];
-    } else {
-      let nextIndex = currentLinkIndexRef.current;
-      let attempts = 0;
-      const allPossibleLinks = singleLoopLinkIdRef.current ? currentLinks.filter(l => l.id === singleLoopLinkIdRef.current) : currentLinks;
-      
-      while (attempts < allPossibleLinks.length) {
-          nextIndex = (nextIndex + 1) % allPossibleLinks.length;
-          const potentialLink = allPossibleLinks[nextIndex];
-          if (availableLinks.some(l => l.id === potentialLink.id)) {
-              nextLink = potentialLink;
-              currentLinkIndexRef.current = nextIndex;
-              break;
-          }
-          attempts++;
-      }
-    }
+    const nextLink = getNextLink();
 
     if (!nextLink) {
-      addLog({ eventType: "FINISH", message: "পরবর্তী কোনো উপলব্ধ লিঙ্ক খুঁজে পাওয়া যায়নি।" });
-      stopLoop("finished");
-      return;
+        addLog({ eventType: "FINISH", message: "পরবর্তী কোনো উপলব্ধ লিঙ্ক খুঁজে পাওয়া যায়নি।" });
+        stopLoop("finished");
+        return;
     }
 
-    // Process the selected link
-    const nextLinkFinal = nextLink; // Stable reference
     iterationCountRef.current++;
     
     setLinkVisitCount(prevCounts => {
-        const newCount = (prevCounts[nextLinkFinal.id] || 0) + 1;
-        addLog({ eventType: "LOAD", message: `লোড হচ্ছে: ${nextLinkFinal.title} (${nextLinkFinal.url}) - ভিজিট: ${newCount}${nextLinkFinal.iterations > 0 ? '/' + nextLinkFinal.iterations : ''}` });
+        const newCount = (prevCounts[nextLink.id] || 0) + 1;
+        addLog({ eventType: "LOAD", message: `লোড হচ্ছে: ${nextLink.title} (${nextLink.url}) - ভিজিট: ${newCount}${nextLink.iterations > 0 ? '/' + nextLink.iterations : ''}` });
         return {
             ...prevCounts,
-            [nextLinkFinal.id]: newCount,
+            [nextLink.id]: newCount,
         };
     });
     
-    setCurrentUrl(nextLinkFinal.url);
-    setActiveLink(nextLinkFinal);
+    setCurrentUrl(nextLink.url);
+    setActiveLink(nextLink);
 
-    const interval = (currentSettings.globalInterval > 0 ? currentSettings.globalInterval : nextLinkFinal.intervalSec) * 1000;
+    const interval = (settings.globalInterval > 0 ? settings.globalInterval : nextLink.intervalSec) * 1000;
     
-    if (loopTimeoutRef.current) {
-        clearTimeout(loopTimeoutRef.current);
-    }
     loopTimeoutRef.current = setTimeout(runCycle, interval > 100 ? interval : 100);
 
   }, [isPaused, links, settings, linkVisitCount, addLog, stopLoop]);
@@ -326,30 +325,28 @@ export default function ClickLoopPage() {
         return;
     }
     
-    stopLoop('manual'); // Reset everything before starting.
+    // Clear any existing loop
+    if (loopTimeoutRef.current) clearTimeout(loopTimeoutRef.current);
 
-    // Immediately set running state for responsiveness
-    setIsRunning(true);
+    // Reset state for a fresh start
+    iterationCountRef.current = 0;
+    currentLinkIndexRef.current = -1;
+    singleLoopLinkIdRef.current = singleLinkId;
+    setLinkVisitCount({});
+    setActiveLink(null);
+    setCurrentUrl("about:blank")
     setIsPaused(false);
+    setIsRunning(true);
     
-    // Use a timeout to allow the state to update and UI to respond
+    if(settings.mode === CycleMode.SINGLE && singleLinkId){
+      const link = links.find(l => l.id === singleLinkId);
+      addLog({ eventType: "START", message: `"${link?.title}" এর জন্য একক লিঙ্ক লুপ শুরু হয়েছে।` });
+    } else {
+      addLog({ eventType: "START", message: `${settings.mode} মোডে লুপ শুরু হয়েছে।` });
+    }
+    
+    // Defer the first runCycle call to allow state to update
     setTimeout(() => {
-        iterationCountRef.current = 0;
-        setLinkVisitCount({});
-        
-        const relevantLinks = singleLinkId ? enabledLinks.filter(l => l.id === singleLinkId) : enabledLinks;
-        const initialIndex = singleLinkId ? -1 : (settings.mode === CycleMode.RANDOM ? Math.floor(Math.random() * relevantLinks.length) -1 : -1) ;
-        currentLinkIndexRef.current = links.findIndex(l => l.id === relevantLinks[initialIndex]?.id);
-
-        singleLoopLinkIdRef.current = singleLinkId;
-
-        if(settings.mode === CycleMode.SINGLE && singleLinkId){
-          const link = links.find(l => l.id === singleLinkId);
-          addLog({ eventType: "START", message: `"${link?.title}" এর জন্য একক লিঙ্ক লুপ শুরু হয়েছে।` });
-        } else {
-          addLog({ eventType: "START", message: `${settings.mode} মোডে লুপ শুরু হয়েছে।` });
-        }
-        
         runCycle();
     }, 100);
   };
@@ -369,10 +366,12 @@ export default function ClickLoopPage() {
     if (!isRunning || !isPaused) return;
     setIsPaused(false);
     addLog({ eventType: "RESUME", message: "লুপ আবার শুরু হয়েছে।" });
-    runCycle();
+    // Don't call runCycle immediately, let the effect handle it.
+    // This prevents potential race conditions.
   };
   
   React.useEffect(() => {
+    // This effect ensures the loop restarts correctly after being resumed.
     if (isRunning && !isPaused && !loopTimeoutRef.current) {
         runCycle();
     }
@@ -656,7 +655,5 @@ export default function ClickLoopPage() {
     </TooltipProvider>
   );
 }
-
-    
 
     
