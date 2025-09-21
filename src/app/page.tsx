@@ -36,15 +36,7 @@ import {
   } from "@/components/ui/form";
 import { Input } from "@/components/ui/input";
 import { ScrollArea } from "@/components/ui/scroll-area";
-import {
-  Sidebar,
-  SidebarContent,
-  SidebarFooter,
-  SidebarHeader,
-  SidebarInset,
-  SidebarProvider,
-  SidebarSeparator,
-} from "@/components/ui/sidebar";
+import { Separator } from "@/components/ui/separator";
 import {
   Tooltip,
   TooltipContent,
@@ -397,17 +389,17 @@ export default function ClickLoopPage() {
 
   return (
     <TooltipProvider>
-      <SidebarProvider>
-        <div className="min-h-screen">
-          <Sidebar>
-            <SidebarHeader className="p-4">
+      <div className="min-h-screen grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3">
+        {/* Left Column: Controls & Links */}
+        <div className="lg:col-span-1 md:col-span-1 bg-card flex flex-col h-screen">
+            <header className="p-4 border-b">
               <div className="flex items-center gap-3">
                 <AppLogo className="size-8 text-primary" />
                 <h1 className="text-2xl font-bold font-headline">ClickLoop</h1>
               </div>
-            </SidebarHeader>
+            </header>
 
-            <SidebarContent className="p-0">
+            <div className="flex-1 flex flex-col min-h-0">
                <Card className="m-4">
                 <CardHeader>
                     <CardTitle>নতুন লিঙ্ক যোগ করুন</CardTitle>
@@ -478,8 +470,8 @@ export default function ClickLoopPage() {
                     </Form>
                 </CardContent>
                </Card>
-              <SidebarSeparator />
-              <ScrollArea className="h-[calc(100vh-540px)]">
+              <Separator />
+              <ScrollArea className="flex-1">
                 <div className="flex flex-col gap-3 p-4">
                   {isClient && links.length > 0 ? (
                     links.map(link => <LinkCard key={link.id} link={link} />)
@@ -491,13 +483,13 @@ export default function ClickLoopPage() {
                   ) : null }
                 </div>
               </ScrollArea>
-            </SidebarContent>
+            </div>
 
-            <SidebarSeparator />
+            <Separator />
             
-            <SidebarFooter className="p-4 gap-4">
+            <footer className="p-4 gap-4 border-t">
               {isRunning && activeLink && (
-                  <div className="p-3 rounded-lg bg-accent/50 text-accent-foreground text-sm">
+                  <div className="p-3 rounded-lg bg-accent/50 text-accent-foreground text-sm mb-4">
                       <p className="font-bold truncate">বর্তমান: {activeLink.title}</p>
                       <p className="text-xs text-muted-foreground">
                           মোট পুনরাবৃত্তি: {iterationCountRef.current} / {settings.maxTotalIterations > 0 ? settings.maxTotalIterations : '∞'}
@@ -521,58 +513,58 @@ export default function ClickLoopPage() {
                     </>
                 )}
               </div>
-            </SidebarFooter>
-          </Sidebar>
-
-          <SidebarInset>
-            <div className="flex flex-col h-screen">
-                <header className="flex items-center justify-end p-4 gap-2 border-b">
-                    <Button variant="outline" size="icon" onClick={() => setDialogOpen("logs")}>
-                        <History />
-                    </Button>
-                    <Button variant="outline" size="icon" onClick={() => setDialogOpen("settings")}>
-                        <Cog />
-                    </Button>
-                </header>
-                <main className="flex-1 bg-muted/20 relative">
-                    {isClient && (links.length > 0 || isRunning) ? (
-                        <>
-                           {currentUrl !== 'about:blank' &&  
-                            <iframe
-                                key={currentUrl}
-                                src={currentUrl}
-                                className="w-full h-full border-0"
-                                title="ClickLoop Target"
-                                sandbox="allow-forms allow-modals allow-pointer-lock allow-popups allow-popups-to-escape-sandbox allow-same-origin allow-scripts allow-presentation"
-                            ></iframe>
-                           }
-                            {(isRunning && currentUrl === 'about:blank') && 
-                                <div className="absolute inset-0 bg-background/80 flex flex-col items-center justify-center gap-4">
-                                    <Loader2 className="size-8 animate-spin text-primary" />
-                                    <p className="text-muted-foreground">লুপ প্রস্তুত করা হচ্ছে...</p>
-                                </div>
-                            }
-                        </>
-                    ) : isClient ? (
-                      <div className="flex flex-col items-center justify-center h-full text-center p-8">
-                        <div className="relative w-full max-w-lg aspect-video mb-8">
-                            <Image 
-                                src={emptyStateImage.imageUrl} 
-                                alt={emptyStateImage.description} 
-                                fill
-                                className="object-cover rounded-lg"
-                                data-ai-hint={emptyStateImage.imageHint}
-                            />
-                        </div>
-                        <h2 className="text-3xl font-bold font-headline mb-2">ClickLoop এ স্বাগতম</h2>
-                        <p className="max-w-md text-muted-foreground mb-6">আপনার প্রথম লিঙ্ক যোগ করে শুরু করুন।</p>
-                      </div>
-                    ) : null}
-                </main>
-            </div>
-          </SidebarInset>
+            </footer>
         </div>
-      </SidebarProvider>
+        
+        {/* Right Column: Iframe and Welcome */}
+        <div className="lg:col-span-2 md:col-span-1 flex flex-col h-screen">
+            <header className="flex items-center justify-end p-4 gap-2 border-b">
+                <Button variant="outline" size="icon" onClick={() => setDialogOpen("logs")}>
+                    <History />
+                    <span className="sr-only">লগ দেখুন</span>
+                </Button>
+                <Button variant="outline" size="icon" onClick={() => setDialogOpen("settings")}>
+                    <Cog />
+                    <span className="sr-only">সেটিংস</span>
+                </Button>
+            </header>
+            <main className="flex-1 bg-muted/20 relative">
+                {isClient && (links.length > 0 || isRunning) ? (
+                    <>
+                       {currentUrl !== 'about:blank' &&  
+                        <iframe
+                            key={currentUrl}
+                            src={currentUrl}
+                            className="w-full h-full border-0"
+                            title="ClickLoop Target"
+                            sandbox="allow-forms allow-modals allow-pointer-lock allow-popups allow-popups-to-escape-sandbox allow-same-origin allow-scripts allow-presentation"
+                        ></iframe>
+                       }
+                        {(isRunning && currentUrl === 'about:blank') && 
+                            <div className="absolute inset-0 bg-background/80 flex flex-col items-center justify-center gap-4">
+                                <Loader2 className="size-8 animate-spin text-primary" />
+                                <p className="text-muted-foreground">লুপ প্রস্তুত করা হচ্ছে...</p>
+                            </div>
+                        }
+                    </>
+                ) : isClient ? (
+                  <div className="flex flex-col items-center justify-center h-full text-center p-8">
+                    <div className="relative w-full max-w-lg aspect-video mb-8">
+                        <Image 
+                            src={emptyStateImage.imageUrl} 
+                            alt={emptyStateImage.description} 
+                            fill
+                            className="object-cover rounded-lg"
+                            data-ai-hint={emptyStateImage.imageHint}
+                        />
+                    </div>
+                    <h2 className="text-3xl font-bold font-headline mb-2">ClickLoop এ স্বাগতম</h2>
+                    <p className="max-w-md text-muted-foreground mb-6">আপনার প্রথম লিঙ্ক যোগ করে শুরু করুন।</p>
+                  </div>
+                ) : null}
+            </main>
+        </div>
+      </div>
 
       <AddEditLinkDialog
         isOpen={dialogOpen === "edit"}
@@ -598,5 +590,3 @@ export default function ClickLoopPage() {
     </TooltipProvider>
   );
 }
-
-    
