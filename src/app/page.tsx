@@ -259,6 +259,10 @@ export default function ClickLoopPage() {
     } else {
       addLog({ eventType: "START", message: `${settings.mode} মোডে লুপ শুরু হয়েছে।` });
     }
+    
+    // Immediately start the first cycle
+    if (loopTimeoutRef.current) clearTimeout(loopTimeoutRef.current);
+    loopTimeoutRef.current = setTimeout(runCycle, 100);
   };
 
   const pauseLoop = () => {
@@ -277,96 +281,95 @@ export default function ClickLoopPage() {
     addLog({ eventType: "RESUME", message: "লুপ আবার শুরু হয়েছে।" });
   };
   
-  React.useEffect(() => {
-    if (!isRunning || isPaused) {
-      if (loopTimeoutRef.current) {
-        clearTimeout(loopTimeoutRef.current);
-        loopTimeoutRef.current = null;
-      }
+  const runCycle = React.useCallback(() => {
+    if (isPaused) return;
+    
+    let availableLinks = links.filter(l => l.enabled);
+
+    if (singleLoopLinkIdRef.current) {
+      availableLinks = availableLinks.filter(l => l.id === singleLoopLinkIdRef.current);
+    } else {
+      availableLinks = availableLinks.filter(l => {
+        if (l.iterations === 0) return true;
+        const visitedCount = linkVisitCountRef.current[l.id] || 0;
+        return visitedCount < l.iterations;
+      });
+    }
+
+    if (availableLinks.length === 0) {
+      addLog({ eventType: "FINISH", message: "চালানোর জন্য কোনো সক্রিয় লিঙ্ক নেই বা সমস্ত পুনরাবৃত্তি সম্পন্ন হয়েছে।" });
+      stopLoop("finished");
       return;
     }
-  
-    const runCycle = () => {
-      let availableLinks = links.filter(l => l.enabled);
-  
-      if (singleLoopLinkIdRef.current) {
-        availableLinks = availableLinks.filter(l => l.id === singleLoopLinkIdRef.current);
-      } else {
-        availableLinks = availableLinks.filter(l => {
-          if (l.iterations === 0) return true;
-          const visitedCount = linkVisitCountRef.current[l.id] || 0;
-          return visitedCount < l.iterations;
-        });
-      }
-  
-      if (availableLinks.length === 0) {
-        addLog({ eventType: "FINISH", message: "চালানোর জন্য কোনো সক্রিয় লিঙ্ক নেই বা সমস্ত পুনরাবৃত্তি সম্পন্ন হয়েছে।" });
-        stopLoop("finished");
-        return;
-      }
-  
-      if (settings.maxTotalIterations > 0 && iterationCountRef.current >= settings.maxTotalIterations) {
-        addLog({ eventType: "FINISH", message: `সর্বোচ্চ পুনরাবৃত্তি (${settings.maxTotalIterations}) সংখ্যায় পৌঁছেছে।` });
-        stopLoop("finished");
-        return;
-      }
-  
-      let nextLink: LinkItem | undefined;
-  
-      if (settings.mode === CycleMode.RANDOM && !singleLoopLinkIdRef.current) {
-        const randomIndex = Math.floor(Math.random() * availableLinks.length);
-        nextLink = availableLinks[randomIndex];
-        currentLinkIndexRef.current = links.findIndex(l => l.id === nextLink?.id);
-      } else {
-        let attempts = 0;
-        let nextIndex = currentLinkIndexRef.current;
-        const allLinks = singleLoopLinkIdRef.current ? links.filter(l => l.id === singleLoopLinkIdRef.current) : links;
-        while (attempts < allLinks.length) {
-          nextIndex = (nextIndex + 1) % allLinks.length;
-          const potentialLink = allLinks[nextIndex];
-          if (availableLinks.some(l => l.id === potentialLink.id)) {
-            nextLink = potentialLink;
-            currentLinkIndexRef.current = links.findIndex(l => l.id === nextLink?.id);
-            break;
-          }
-          attempts++;
+
+    if (settings.maxTotalIterations > 0 && iterationCountRef.current >= settings.maxTotalIterations) {
+      addLog({ eventType: "FINISH", message: `সর্বোচ্চ পুনরাবৃত্তি (${settings.maxTotalIterations}) সংখ্যায় পৌঁছেছে।` });
+      stopLoop("finished");
+      return;
+    }
+
+    let nextLink: LinkItem | undefined;
+
+    if (settings.mode === CycleMode.RANDOM && !singleLoopLinkIdRef.current) {
+      const randomIndex = Math.floor(Math.random() * availableLinks.length);
+      nextLink = availableLinks[randomIndex];
+      currentLinkIndexRef.current = links.findIndex(l => l.id === nextLink?.id);
+    } else {
+      let attempts = 0;
+      let nextIndex = currentLinkIndexRef.current;
+      const allLinks = singleLoopLinkIdRef.current ? links.filter(l => l.id === singleLoopLinkIdRef.current) : links;
+      while (attempts < allLinks.length) {
+        nextIndex = (nextIndex + 1) % allLinks.length;
+        const potentialLink = allLinks[nextIndex];
+        if (availableLinks.some(l => l.id === potentialLink.id)) {
+          nextLink = potentialLink;
+          currentLinkIndexRef.current = links.findIndex(l => l.id === nextLink?.id);
+          break;
         }
+        attempts++;
       }
-  
-      if (!nextLink) {
-        addLog({ eventType: "FINISH", message: "পরবর্তী কোনো উপলব্ধ লিঙ্ক খুঁজে পাওয়া যায়নি।" });
-        stopLoop("finished");
-        return;
-      }
-  
-      linkVisitCountRef.current[nextLink.id] = (linkVisitCountRef.current[nextLink.id] || 0) + 1;
-      iterationCountRef.current++;
-      setCurrentUrl(nextLink.url);
-      setActiveLink(nextLink);
-      addLog({ eventType: "LOAD", message: `লোড হচ্ছে: ${nextLink.title} (${nextLink.url}) - ভিজিট: ${linkVisitCountRef.current[nextLink.id]}${nextLink.iterations > 0 ? '/' + nextLink.iterations : ''}` });
-  
-    };
-  
+    }
+
+    if (!nextLink) {
+      addLog({ eventType: "FINISH", message: "পরবর্তী কোনো উপলব্ধ লিঙ্ক খুঁজে পাওয়া যায়নি।" });
+      stopLoop("finished");
+      return;
+    }
+
+    linkVisitCountRef.current[nextLink.id] = (linkVisitCountRef.current[nextLink.id] || 0) + 1;
+    iterationCountRef.current++;
+    setCurrentUrl(nextLink.url);
+    setActiveLink(nextLink);
+    addLog({ eventType: "LOAD", message: `লোড হচ্ছে: ${nextLink.title} (${nextLink.url}) - ভিজিট: ${linkVisitCountRef.current[nextLink.id]}${nextLink.iterations > 0 ? '/' + nextLink.iterations : ''}` });
+
+    const interval = (settings.globalInterval > 0 ? settings.globalInterval : nextLink.intervalSec) * 1000;
+    
     if (loopTimeoutRef.current) {
       clearTimeout(loopTimeoutRef.current);
     }
-  
-    const currentLink = activeLink;
-    let interval;
-    if (currentLink) {
-      interval = (settings.globalInterval > 0 ? settings.globalInterval : currentLink.intervalSec) * 1000;
-    } else {
-      interval = 100; // Small delay for the very first load
-    }
-  
     loopTimeoutRef.current = setTimeout(runCycle, interval);
+
+  }, [links, settings, addLog, stopLoop, isPaused]);
   
-    return () => {
-      if (loopTimeoutRef.current) {
+  React.useEffect(() => {
+    if (isRunning && !isPaused) {
+        // If the loop was resumed, immediately call runCycle.
+        // runCycle itself will set the next timeout.
+        const timeoutId = loopTimeoutRef.current;
+        if (!timeoutId) {
+            runCycle();
+        }
+    } else if (loopTimeoutRef.current) {
         clearTimeout(loopTimeoutRef.current);
-      }
+        loopTimeoutRef.current = null;
+    }
+
+    return () => {
+        if (loopTimeoutRef.current) {
+            clearTimeout(loopTimeoutRef.current);
+        }
     };
-  }, [isRunning, isPaused, links, settings, addLog, stopLoop, activeLink]);
+}, [isRunning, isPaused, runCycle]);
 
 
   const LinkCard = ({ link }: { link: LinkItem }) => (
@@ -486,7 +489,7 @@ export default function ClickLoopPage() {
                                 <FormItem>
                                     <FormLabel>বিরতি (সেকেন্ড)</FormLabel>
                                     <FormControl>
-                                    <Input type="number" min="1" {...field} value={field.value ?? ''} onChange={e => field.onChange(e.target.value === '' ? '' : parseInt(e.target.value, 10))} />
+                                    <Input type="number" min="1" {...field} value={field.value ?? ''} onChange={e => field.onChange(e.target.value === '' ? null : parseInt(e.target.value, 10))} />
                                     </FormControl>
                                     <FormMessage />
                                 </FormItem>
@@ -499,7 +502,7 @@ export default function ClickLoopPage() {
                                 <FormItem>
                                     <FormLabel>পুনরাবৃত্তি (0=∞)</FormLabel>
                                     <FormControl>
-                                    <Input type="number" min="0" {...field} value={field.value ?? ''} onChange={e => field.onChange(e.target.value === '' ? '' : parseInt(e.target.value, 10))}/>
+                                    <Input type="number" min="0" {...field} value={field.value ?? ''} onChange={e => field.onChange(e.target.value === '' ? null : parseInt(e.target.value, 10))}/>
                                     </FormControl>
                                     <FormMessage />
                                 </FormItem>
@@ -626,7 +629,5 @@ export default function ClickLoopPage() {
     </TooltipProvider>
   );
 }
-
-    
 
     
