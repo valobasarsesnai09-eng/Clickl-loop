@@ -118,11 +118,33 @@ export default function ClickLoopPage() {
   >(null);
   const [editingLink, setEditingLink] = React.useState<LinkItem | null>(null);
 
+  // --- Core Loop Logic Refs ---
   const loopTimeoutRef = React.useRef<NodeJS.Timeout | null>(null);
-  const iterationCountRef = React.useRef(0);
-  const currentLinkIndexRef = React.useRef(-1);
-  const singleLoopLinkIdRef = React.useRef<string | null>(null);
-  
+  const loopStateRef = React.useRef({
+      isRunning: false,
+      isPaused: false,
+      currentLinkIndex: -1,
+      iterationCount: 0,
+      singleLoopLinkId: null as string | null,
+      links: [] as LinkItem[],
+      settings: {} as AppSettings,
+      linkVisitCount: {} as Record<string, number>
+  });
+  // Keep the ref updated with the latest state
+  React.useEffect(() => {
+    loopStateRef.current = {
+        isRunning,
+        isPaused,
+        links,
+        settings,
+        linkVisitCount,
+        // Persist these across state updates
+        currentLinkIndex: loopStateRef.current.currentLinkIndex,
+        iterationCount: loopStateRef.current.iterationCount,
+        singleLoopLinkId: loopStateRef.current.singleLoopLinkId
+    };
+  }, [isRunning, isPaused, links, settings, linkVisitCount]);
+  // ---------------------------
 
   const { toast } = useToast();
 
@@ -135,6 +157,178 @@ export default function ClickLoopPage() {
       iterations: 0,
     },
   });
+
+  const addLog = React.useCallback((entry: Omit<LogEntry, "timestamp">) => {
+    setLogs((prev) => [
+      { ...entry, timestamp: Date.now() },
+      ...prev,
+    ]);
+  }, [setLogs]);
+
+  const runCycle = React.useCallback(() => {
+    // Use the ref for the most current state to avoid stale closures
+    const state = loopStateRef.current;
+    if (!state.isRunning || state.isPaused) {
+        return;
+    }
+  
+    const getNextLink = (): LinkItem | null => {
+      let availableLinks = state.links.filter(l => l.enabled);
+  
+      if (state.singleLoopLinkId) {
+        availableLinks = availableLinks.filter(l => l.id === state.singleLoopLinkId);
+      } else {
+        availableLinks = availableLinks.filter(l => {
+          if (l.iterations === 0) return true;
+          const visitedCount = state.linkVisitCount[l.id] || 0;
+          return visitedCount < l.iterations;
+        });
+      }
+  
+      if (availableLinks.length === 0) return null;
+  
+      if (state.settings.maxTotalIterations > 0 && state.iterationCount >= state.settings.maxTotalIterations) {
+        addLog({ eventType: "FINISH", message: `সর্বোচ্চ পুনরাবৃত্তি (${state.settings.maxTotalIterations}) সংখ্যায় পৌঁছেছে।` });
+        return null;
+      }
+  
+      let nextLink: LinkItem | undefined;
+      if (state.settings.mode === CycleMode.RANDOM && !state.singleLoopLinkId) {
+        const randomIndex = Math.floor(Math.random() * availableLinks.length);
+        nextLink = availableLinks[randomIndex];
+        loopStateRef.current.currentLinkIndex = state.links.findIndex(l => l.id === nextLink?.id);
+      } else {
+        let nextIndex = state.currentLinkIndex;
+        const allPossibleLinks = state.singleLoopLinkId ? state.links.filter(l => l.id === state.singleLoopLinkId) : state.links;
+        
+        for (let i = 0; i < allPossibleLinks.length; i++) {
+            nextIndex = (nextIndex + 1) % allPossibleLinks.length;
+            const potentialLink = allPossibleLinks[nextIndex];
+            if (availableLinks.some(l => l.id === potentialLink.id)) {
+                nextLink = potentialLink;
+                loopStateRef.current.currentLinkIndex = nextIndex;
+                break;
+            }
+        }
+      }
+      return nextLink || null;
+    }
+  
+    const nextLink = getNextLink();
+  
+    if (!nextLink) {
+        addLog({ eventType: "FINISH", message: "পরবর্তী কোনো উপলব্ধ লিঙ্ক খুঁজে পাওয়া যায়নি।" });
+        stopLoop("finished"); // Call stopLoop which uses React state setters
+        return;
+    }
+    
+    // Update iteration counts in ref
+    loopStateRef.current.iterationCount++;
+    const newVisitCount = (loopStateRef.current.linkVisitCount[nextLink.id] || 0) + 1;
+    loopStateRef.current.linkVisitCount[nextLink.id] = newVisitCount;
+  
+    // Update React state for UI rendering
+    setLinkVisitCount(prev => ({...prev, [nextLink.id]: newVisitCount}));
+    setCurrentUrl(nextLink.url);
+    setActiveLink(nextLink);
+    addLog({ eventType: "LOAD", message: `লোড হচ্ছে: ${nextLink.title} (${nextLink.url}) - ভিজিট: ${newVisitCount}${nextLink.iterations > 0 ? '/' + nextLink.iterations : ''}` });
+  
+    const interval = (state.settings.globalInterval > 0 ? state.settings.globalInterval : nextLink.intervalSec) * 1000;
+    
+    loopTimeoutRef.current = setTimeout(runCycle, interval > 100 ? interval : 100);
+  
+  }, [addLog]); // Dependencies only for functions that don't change often
+  
+  const stopLoop = React.useCallback((reason: "manual" | "finished" | "error") => {
+    if (loopTimeoutRef.current) {
+      clearTimeout(loopTimeoutRef.current);
+      loopTimeoutRef.current = null;
+    }
+
+    // Reset ref state
+    loopStateRef.current.isRunning = false;
+    loopStateRef.current.isPaused = false;
+    loopStateRef.current.currentLinkIndex = -1;
+    loopStateRef.current.iterationCount = 0;
+    loopStateRef.current.singleLoopLinkId = null;
+    loopStateRef.current.linkVisitCount = {};
+
+    // Reset React state for UI
+    setIsRunning(false);
+    setIsPaused(false);
+    setActiveLink(null);
+    setCurrentUrl("about:blank");
+    setLinkVisitCount({});
+    
+    if (reason === "manual") addLog({ eventType: "STOP", message: "ব্যবহারকারী লুপ বন্ধ করেছেন।" });
+    if (reason === "finished") addLog({ eventType: "FINISH", message: "সমস্ত লুপ চক্র সম্পন্ন হয়েছে।" });
+    if (reason === "error") addLog({ eventType: "ERROR", message: "ত্রুটির কারণে লুপ বন্ধ হয়ে গেছে।" });
+  }, [addLog]);
+
+  const startLoop = (singleLinkId: string | null = null) => {
+    const enabledLinks = links.filter(l => l.enabled);
+    if (enabledLinks.length === 0) {
+        toast({ title: "কোনো সক্রিয় লিঙ্ক নেই", description: "শুরু করতে অনুগ্রহ করে অন্তত একটি লিঙ্ক যোগ এবং সক্রিয় করুন।", variant: "destructive" });
+        return;
+    }
+    
+    // Clear any existing loop
+    if (loopTimeoutRef.current) clearTimeout(loopTimeoutRef.current);
+
+    // Reset state for a fresh start via the ref
+    loopStateRef.current.iterationCount = 0;
+    loopStateRef.current.currentLinkIndex = -1;
+    loopStateRef.current.singleLoopLinkId = singleLinkId;
+    loopStateRef.current.linkVisitCount = {};
+    loopStateRef.current.isRunning = true;
+    loopStateRef.current.isPaused = false;
+    
+    // Update React state for UI
+    setLinkVisitCount({});
+    setActiveLink(null);
+    setCurrentUrl("about:blank")
+    setIsPaused(false);
+    setIsRunning(true);
+    
+    if(settings.mode === CycleMode.SINGLE && singleLinkId){
+      const link = links.find(l => l.id === singleLinkId);
+      addLog({ eventType: "START", message: `"${link?.title}" এর জন্য একক লিঙ্ক লুপ শুরু হয়েছে।` });
+    } else {
+      addLog({ eventType: "START", message: `${settings.mode} মোডে লুপ শুরু হয়েছে।` });
+    }
+    
+    // Defer the first runCycle call to allow state to update
+    setTimeout(runCycle, 100);
+  };
+
+  const pauseLoop = () => {
+    if (!isRunning || isPaused) return;
+    loopStateRef.current.isPaused = true;
+    setIsPaused(true);
+    if (loopTimeoutRef.current) {
+        clearTimeout(loopTimeoutRef.current);
+        loopTimeoutRef.current = null;
+    }
+    addLog({ eventType: "PAUSE", message: "লুপ সাময়িকভাবে বন্ধ হয়েছে।" });
+  };
+
+  const resumeLoop = () => {
+    if (!isRunning || !isPaused) return;
+    loopStateRef.current.isPaused = false;
+    setIsPaused(false);
+    addLog({ eventType: "RESUME", message: "লুপ আবার শুরু হয়েছে।" });
+    // The loop will resume on the next timeout
+    runCycle();
+  };
+  
+  React.useEffect(() => {
+    // Cleanup on unmount
+    return () => {
+        if (loopTimeoutRef.current) {
+            clearTimeout(loopTimeoutRef.current);
+        }
+    };
+  }, []);
 
   const handleAddLink = (data: z.infer<typeof addEditLinkSchema>) => {
     const newLink: LinkItem = {
@@ -165,13 +359,6 @@ export default function ClickLoopPage() {
       }
     }
   };
-
-  const addLog = React.useCallback((entry: Omit<LogEntry, "timestamp">) => {
-    setLogs((prev) => [
-      { ...entry, timestamp: Date.now() },
-      ...prev,
-    ]);
-  }, [setLogs]);
   
   const handleUpdateLink = (
     id: string,
@@ -214,175 +401,6 @@ export default function ClickLoopPage() {
     setEditingLink(link);
     setDialogOpen("edit");
   };
-
-  const stopLoop = React.useCallback((reason: "manual" | "finished" | "error") => {
-    if (loopTimeoutRef.current) {
-      clearTimeout(loopTimeoutRef.current);
-      loopTimeoutRef.current = null;
-    }
-    setIsRunning(false);
-    setIsPaused(false);
-    setActiveLink(null);
-    setCurrentUrl("about:blank");
-    iterationCountRef.current = 0;
-    currentLinkIndexRef.current = -1;
-    singleLoopLinkIdRef.current = null;
-    setLinkVisitCount({});
-    
-    if (reason === "manual") addLog({ eventType: "STOP", message: "ব্যবহারকারী লুপ বন্ধ করেছেন।" });
-    if (reason === "finished") addLog({ eventType: "FINISH", message: "সমস্ত লুপ চক্র সম্পন্ন হয়েছে।" });
-    if (reason === "error") addLog({ eventType: "ERROR", message: "ত্রুটির কারণে লুপ বন্ধ হয়ে গেছে।" });
-
-  }, [addLog]);
-
-  const runCycle = React.useCallback(() => {
-    if (isPaused) return;
-
-    const getNextLink = (): LinkItem | null => {
-        const currentLinks = links; 
-        const currentSettings = settings;
-
-        let availableLinks = currentLinks.filter(l => l.enabled);
-
-        if (singleLoopLinkIdRef.current) {
-            availableLinks = availableLinks.filter(l => l.id === singleLoopLinkIdRef.current);
-        } else {
-             availableLinks = availableLinks.filter(l => {
-                if (l.iterations === 0) return true;
-                const visitedCount = linkVisitCount[l.id] || 0;
-                return visitedCount < l.iterations;
-            });
-        }
-
-        if (availableLinks.length === 0) {
-            return null;
-        }
-
-        if (currentSettings.maxTotalIterations > 0 && iterationCountRef.current >= currentSettings.maxTotalIterations) {
-            addLog({ eventType: "FINISH", message: `সর্বোচ্চ পুনরাবৃত্তি (${currentSettings.maxTotalIterations}) সংখ্যায় পৌঁছেছে।` });
-            return null;
-        }
-
-        let nextLink: LinkItem | undefined;
-        if (currentSettings.mode === CycleMode.RANDOM && !singleLoopLinkIdRef.current) {
-            const randomIndex = Math.floor(Math.random() * availableLinks.length);
-            nextLink = availableLinks[randomIndex];
-            // Find the index in the original links array to keep track
-            const originalIndex = links.findIndex(l => l.id === nextLink?.id);
-            if (originalIndex !== -1) {
-                currentLinkIndexRef.current = originalIndex;
-            }
-        } else { // SEQUENTIAL or SINGLE
-            let nextIndex = currentLinkIndexRef.current;
-            const allPossibleLinks = singleLoopLinkIdRef.current ? links.filter(l => l.id === singleLoopLinkIdRef.current) : links;
-            
-            for (let i = 0; i < allPossibleLinks.length; i++) {
-                nextIndex = (nextIndex + 1) % allPossibleLinks.length;
-                const potentialLink = allPossibleLinks[nextIndex];
-                if (availableLinks.some(l => l.id === potentialLink.id)) {
-                    nextLink = potentialLink;
-                    currentLinkIndexRef.current = nextIndex;
-                    break;
-                }
-            }
-        }
-        return nextLink || null;
-    }
-
-    const nextLink = getNextLink();
-
-    if (!nextLink) {
-        addLog({ eventType: "FINISH", message: "পরবর্তী কোনো উপলব্ধ লিঙ্ক খুঁজে পাওয়া যায়নি।" });
-        stopLoop("finished");
-        return;
-    }
-
-    iterationCountRef.current++;
-    
-    setLinkVisitCount(prevCounts => {
-        const newCount = (prevCounts[nextLink.id] || 0) + 1;
-        addLog({ eventType: "LOAD", message: `লোড হচ্ছে: ${nextLink.title} (${nextLink.url}) - ভিজিট: ${newCount}${nextLink.iterations > 0 ? '/' + nextLink.iterations : ''}` });
-        return {
-            ...prevCounts,
-            [nextLink.id]: newCount,
-        };
-    });
-    
-    setCurrentUrl(nextLink.url);
-    setActiveLink(nextLink);
-
-    const interval = (settings.globalInterval > 0 ? settings.globalInterval : nextLink.intervalSec) * 1000;
-    
-    loopTimeoutRef.current = setTimeout(runCycle, interval > 100 ? interval : 100);
-
-  }, [isPaused, links, settings, linkVisitCount, addLog, stopLoop]);
-
-
-  const startLoop = (singleLinkId: string | null = null) => {
-    const enabledLinks = links.filter(l => l.enabled);
-    if (enabledLinks.length === 0) {
-        toast({ title: "কোনো সক্রিয় লিঙ্ক নেই", description: "শুরু করতে অনুগ্রহ করে অন্তত একটি লিঙ্ক যোগ এবং সক্রিয় করুন।", variant: "destructive" });
-        return;
-    }
-    
-    // Clear any existing loop
-    if (loopTimeoutRef.current) clearTimeout(loopTimeoutRef.current);
-
-    // Reset state for a fresh start
-    iterationCountRef.current = 0;
-    currentLinkIndexRef.current = -1;
-    singleLoopLinkIdRef.current = singleLinkId;
-    setLinkVisitCount({});
-    setActiveLink(null);
-    setCurrentUrl("about:blank")
-    setIsPaused(false);
-    setIsRunning(true);
-    
-    if(settings.mode === CycleMode.SINGLE && singleLinkId){
-      const link = links.find(l => l.id === singleLinkId);
-      addLog({ eventType: "START", message: `"${link?.title}" এর জন্য একক লিঙ্ক লুপ শুরু হয়েছে।` });
-    } else {
-      addLog({ eventType: "START", message: `${settings.mode} মোডে লুপ শুরু হয়েছে।` });
-    }
-    
-    // Defer the first runCycle call to allow state to update
-    setTimeout(() => {
-        runCycle();
-    }, 100);
-  };
-
-
-  const pauseLoop = () => {
-    if (!isRunning || isPaused) return;
-    setIsPaused(true);
-    if (loopTimeoutRef.current) {
-        clearTimeout(loopTimeoutRef.current);
-        loopTimeoutRef.current = null;
-    }
-    addLog({ eventType: "PAUSE", message: "লুপ সাময়িকভাবে বন্ধ হয়েছে।" });
-  };
-
-  const resumeLoop = () => {
-    if (!isRunning || !isPaused) return;
-    setIsPaused(false);
-    addLog({ eventType: "RESUME", message: "লুপ আবার শুরু হয়েছে।" });
-    // Don't call runCycle immediately, let the effect handle it.
-    // This prevents potential race conditions.
-  };
-  
-  React.useEffect(() => {
-    // This effect ensures the loop restarts correctly after being resumed.
-    if (isRunning && !isPaused && !loopTimeoutRef.current) {
-        runCycle();
-    }
-    // Cleanup on unmount or when loop stops
-    return () => {
-        if (loopTimeoutRef.current) {
-            clearTimeout(loopTimeoutRef.current);
-        }
-    };
-  }, [isRunning, isPaused, runCycle]);
-
 
   const LinkCard = ({ link }: { link: LinkItem }) => {
     const visits = linkVisitCount[link.id] || 0;
@@ -565,7 +583,7 @@ export default function ClickLoopPage() {
                   <div className="p-3 rounded-lg bg-accent/50 text-accent-foreground text-sm mb-4">
                       <p className="font-bold truncate">বর্তমান: {activeLink.title}</p>
                       <p className="text-xs text-muted-foreground">
-                          মোট পুনরাবৃত্তি: {iterationCountRef.current} / {settings.maxTotalIterations > 0 ? settings.maxTotalIterations : '∞'}
+                          মোট পুনরাবৃত্তি: {loopStateRef.current.iterationCount} / {settings.maxTotalIterations > 0 ? settings.maxTotalIterations : '∞'}
                       </p>
                   </div>
               )}
@@ -655,5 +673,3 @@ export default function ClickLoopPage() {
     </TooltipProvider>
   );
 }
-
-    
