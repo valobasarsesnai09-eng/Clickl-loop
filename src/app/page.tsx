@@ -108,6 +108,7 @@ export default function ClickLoopPage() {
   const iterationCountRef = React.useRef(0);
   const currentLinkIndexRef = React.useRef(-1);
   const singleLoopLinkIdRef = React.useRef<string | null>(null);
+  const linkVisitCountRef = React.useRef<Record<string, number>>({});
 
   const { toast } = useToast();
 
@@ -211,6 +212,7 @@ export default function ClickLoopPage() {
     iterationCountRef.current = 0;
     currentLinkIndexRef.current = -1;
     singleLoopLinkIdRef.current = null;
+    linkVisitCountRef.current = {};
     
     if (reason === "manual") addLog({ eventType: "STOP", message: "ব্যবহারকারী লুপ বন্ধ করেছেন।" });
     if (reason === "finished") addLog({ eventType: "FINISH", message: "সমস্ত লুপ চক্র সম্পন্ন হয়েছে।" });
@@ -227,6 +229,7 @@ export default function ClickLoopPage() {
     setIsRunning(true);
     setIsPaused(false);
     iterationCountRef.current = 0;
+    linkVisitCountRef.current = {};
     
     const relevantLinks = singleLinkId ? enabledLinks.filter(l => l.id === singleLinkId) : enabledLinks;
     const initialIndex = singleLinkId ? -1 : (settings.mode === CycleMode.RANDOM ? Math.floor(Math.random() * relevantLinks.length) -1 : -1) ;
@@ -266,13 +269,21 @@ export default function ClickLoopPage() {
     }
 
     const runCycle = () => {
-        let enabledLinks = links.filter(l => l.enabled);
-        if(singleLoopLinkIdRef.current) {
-            enabledLinks = enabledLinks.filter(l => l.id === singleLoopLinkIdRef.current);
-        }
+        let availableLinks = links.filter(l => l.enabled);
 
-        if(enabledLinks.length === 0){
-            addLog({ eventType: "FINISH", message: "চালানোর জন্য কোনো সক্রিয় লিঙ্ক নেই।" });
+        if(singleLoopLinkIdRef.current) {
+            availableLinks = availableLinks.filter(l => l.id === singleLoopLinkIdRef.current);
+        } else {
+            // Filter out links that have reached their iteration limit
+            availableLinks = availableLinks.filter(l => {
+                if (l.iterations === 0) return true; // Infinite iterations
+                const visitedCount = linkVisitCountRef.current[l.id] || 0;
+                return visitedCount < l.iterations;
+            });
+        }
+        
+        if(availableLinks.length === 0){
+            addLog({ eventType: "FINISH", message: "চালানোর জন্য কোনো সক্রিয় লিঙ্ক নেই বা সমস্ত পুনরাবৃত্তি সম্পন্ন হয়েছে।" });
             stopLoop("finished");
             return;
         }
@@ -286,39 +297,39 @@ export default function ClickLoopPage() {
         let nextLink: LinkItem | undefined;
 
         if (settings.mode === CycleMode.RANDOM && !singleLoopLinkIdRef.current) {
-            const randomIndex = Math.floor(Math.random() * enabledLinks.length);
-            nextLink = enabledLinks[randomIndex];
+            const randomIndex = Math.floor(Math.random() * availableLinks.length);
+            nextLink = availableLinks[randomIndex];
             currentLinkIndexRef.current = links.findIndex(l => l.id === nextLink?.id);
         } else { 
-            currentLinkIndexRef.current = (currentLinkIndexRef.current + 1) % enabledLinks.length;
-            nextLink = enabledLinks[currentLinkIndexRef.current];
+            // Find the next available link sequentially
+            let attempts = 0;
+            let nextIndex = currentLinkIndexRef.current;
+            while(attempts < links.length) {
+                nextIndex = (nextIndex + 1) % links.length;
+                const potentialLink = links[nextIndex];
+                if (availableLinks.some(l => l.id === potentialLink.id)) {
+                    nextLink = potentialLink;
+                    currentLinkIndexRef.current = nextIndex;
+                    break;
+                }
+                attempts++;
+            }
         }
         
         if (!nextLink) {
-            stopLoop("error");
-            addLog({ eventType: "ERROR", message: "পরবর্তী লিঙ্ক নির্ধারণ করা যায়নি।" });
+            // This case should be covered by availableLinks.length check, but as a safeguard:
+            addLog({ eventType: "FINISH", message: "পরবর্তী কোনো উপলব্ধ লিঙ্ক খুঁজে পাওয়া যায়নি।" });
+            stopLoop("finished");
             return;
         }
         
-        const linkIterations = nextLink.iterations;
+        // Update visit count
+        linkVisitCountRef.current[nextLink.id] = (linkVisitCountRef.current[nextLink.id] || 0) + 1;
         
-        const completedCyclesForThisLink = enabledLinks.reduce((acc, link) => {
-            if(link.id === nextLink!.id) {
-               return acc + 1;
-            }
-            return acc;
-        }, 0);
-
-        if (linkIterations > 0 && !singleLoopLinkIdRef.current && completedCyclesForThisLink > linkIterations) {
-             addLog({eventType: 'INFO', message: `"${nextLink.title}" এর জন্য সর্বোচ্চ পুনরাবৃত্তি সম্পন্ন হয়েছে। এড়িয়ে যাওয়া হচ্ছে।`});
-             runCycle(); 
-             return;
-        }
-
         iterationCountRef.current++;
         setCurrentUrl(nextLink.url);
         setActiveLink(nextLink);
-        addLog({ eventType: "LOAD", message: `লোড হচ্ছে: ${nextLink.title} (${nextLink.url})` });
+        addLog({ eventType: "LOAD", message: `লোড হচ্ছে: ${nextLink.title} (${nextLink.url}) - ভিজিট: ${linkVisitCountRef.current[nextLink.id]}${nextLink.iterations > 0 ? '/' + nextLink.iterations : ''}` });
         
         const interval = (settings.globalInterval > 0 ? settings.globalInterval : nextLink.intervalSec) * 1000;
         
@@ -530,9 +541,9 @@ export default function ClickLoopPage() {
         {/* Right Column: Iframe and Welcome */}
         <div className="lg:col-span-2 md:col-span-1 flex flex-col h-screen border-l">
             <main className="flex-1 bg-muted/20 relative">
-                {isClient && (links.length > 0 || isRunning) ? (
+                {isClient && (
                     <>
-                       {currentUrl !== 'about:blank' &&  
+                       {currentUrl !== 'about:blank' ?
                         <iframe
                             key={currentUrl}
                             src={currentUrl}
@@ -541,29 +552,30 @@ export default function ClickLoopPage() {
                             sandbox="allow-forms allow-modals allow-pointer-lock allow-popups allow-popups-to-escape-sandbox allow-same-origin allow-scripts"
                             referrerPolicy="no-referrer-when-downgrade"
                         ></iframe>
-                       }
-                        {(isRunning && currentUrl === 'about:blank') && 
+                       :
+                        (isRunning ? 
                             <div className="absolute inset-0 bg-background/80 flex flex-col items-center justify-center gap-4">
                                 <Loader2 className="size-8 animate-spin text-primary" />
                                 <p className="text-muted-foreground">লুপ প্রস্তুত করা হচ্ছে...</p>
                             </div>
-                        }
+                        :
+                          <div className="flex flex-col items-center justify-center h-full text-center p-8">
+                            <div className="relative w-full max-w-lg aspect-video mb-8">
+                                <Image 
+                                    src={emptyStateImage.imageUrl} 
+                                    alt={emptyStateImage.description} 
+                                    fill
+                                    className="object-cover rounded-lg"
+                                    data-ai-hint={emptyStateImage.imageHint}
+                                />
+                            </div>
+                            <h2 className="text-3xl font-bold font-headline mb-2">ClickLoop এ স্বাগতম</h2>
+                            <p className="max-w-md text-muted-foreground mb-6">আপনার প্রথম লিঙ্ক যোগ করে শুরু করুন অথবা একটি লুপ চালান।</p>
+                          </div>
+                        )
+                       }
                     </>
-                ) : isClient && links.length === 0 ? (
-                  <div className="flex flex-col items-center justify-center h-full text-center p-8">
-                    <div className="relative w-full max-w-lg aspect-video mb-8">
-                        <Image 
-                            src={emptyStateImage.imageUrl} 
-                            alt={emptyStateImage.description} 
-                            fill
-                            className="object-cover rounded-lg"
-                            data-ai-hint={emptyStateImage.imageHint}
-                        />
-                    </div>
-                    <h2 className="text-3xl font-bold font-headline mb-2">ClickLoop এ স্বাগতম</h2>
-                    <p className="max-w-md text-muted-foreground mb-6">আপনার প্রথম লিঙ্ক যোগ করে শুরু করুন।</p>
-                  </div>
-                ) : null}
+                )}
             </main>
         </div>
       </div>
@@ -592,5 +604,7 @@ export default function ClickLoopPage() {
     </TooltipProvider>
   );
 }
+
+    
 
     
