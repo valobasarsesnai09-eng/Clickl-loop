@@ -46,6 +46,14 @@ export function SettingsSheet({ isOpen, onClose, settings, onSettingsChange }: S
   const handleChange = <K extends keyof AppSettings>(key: K, value: AppSettings[K]) => {
     setLocalSettings(prev => ({...prev, [key]: value}));
   }
+  
+  const handleNumericChange = (key: keyof AppSettings, value: string) => {
+    const numValue = value === '' ? 0 : parseInt(value, 10);
+    if (!isNaN(numValue)) {
+      handleChange(key, numValue as any);
+    }
+  }
+
 
   return (
     <Sheet open={isOpen} onOpenChange={onClose}>
@@ -78,8 +86,8 @@ export function SettingsSheet({ isOpen, onClose, settings, onSettingsChange }: S
             <Input
               id="global-interval"
               type="number"
-              value={localSettings.globalInterval}
-              onChange={(e) => handleChange('globalInterval', e.target.valueAsNumber || 0)}
+              value={localSettings.globalInterval || ''}
+              onChange={(e) => handleNumericChange('globalInterval', e.target.value)}
               placeholder="0 ব্যবহার করতে প্রতি-লিঙ্ক বিরতি"
             />
              <p className="text-xs text-muted-foreground">প্রতিটি লিঙ্কের নিজস্ব বিরতি সেটিং ব্যবহার করতে 0 সেট করুন।</p>
@@ -89,8 +97,8 @@ export function SettingsSheet({ isOpen, onClose, settings, onSettingsChange }: S
             <Input
               id="max-iterations"
               type="number"
-              value={localSettings.maxTotalIterations}
-              onChange={(e) => handleChange('maxTotalIterations', e.target.valueAsNumber || 1000)}
+              value={localSettings.maxTotalIterations || ''}
+              onChange={(e) => handleNumericChange('maxTotalIterations', e.target.value)}
             />
             <p className="text-xs text-muted-foreground">এই মোট পুনরাবৃত্তির পরে লুপটি স্বয়ংক্রিয়ভাবে বন্ধ হয়ে যাবে। কোনো সীমা না চাইলে 0 সেট করুন।</p>
           </div>

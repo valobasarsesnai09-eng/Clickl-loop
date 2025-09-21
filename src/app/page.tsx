@@ -344,7 +344,7 @@ export default function ClickLoopPage() {
             clearTimeout(loopTimeoutRef.current);
         }
     };
-  }, [isRunning, isPaused, links, settings]);
+  }, [isRunning, isPaused, links, settings, setLogs, stopLoop]);
 
 
   const LinkCard = ({ link }: { link: LinkItem }) => (
@@ -464,7 +464,7 @@ export default function ClickLoopPage() {
                                 <FormItem>
                                     <FormLabel>বিরতি (সেকেন্ড)</FormLabel>
                                     <FormControl>
-                                    <Input type="number" min="1" {...field} onChange={e => field.onChange(e.target.valueAsNumber)} />
+                                    <Input type="number" min="1" {...field} onChange={e => field.onChange(e.target.value === '' ? '' : e.target.valueAsNumber)} />
                                     </FormControl>
                                     <FormMessage />
                                 </FormItem>
@@ -477,7 +477,7 @@ export default function ClickLoopPage() {
                                 <FormItem>
                                     <FormLabel>পুনরাবৃত্তি (0=∞)</FormLabel>
                                     <FormControl>
-                                    <Input type="number" min="0" {...field} onChange={e => field.onChange(e.target.valueAsNumber)}/>
+                                    <Input type="number" min="0" {...field} onChange={e => field.onChange(e.target.value === '' ? '' : e.target.valueAsNumber)}/>
                                     </FormControl>
                                     <FormMessage />
                                 </FormItem>
@@ -604,7 +604,5 @@ export default function ClickLoopPage() {
     </TooltipProvider>
   );
 }
-
-    
 
     

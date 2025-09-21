@@ -143,7 +143,7 @@ export function AddEditLinkDialog({ isOpen, onClose, onSubmit, link }: AddEditLi
                   <FormItem>
                     <FormLabel>বিরতি (সেকেন্ড)</FormLabel>
                     <FormControl>
-                      <Input type="number" min="1" {...field} onChange={e => field.onChange(e.target.valueAsNumber)} />
+                      <Input type="number" min="1" {...field} onChange={e => field.onChange(e.target.value === '' ? '' : e.target.valueAsNumber)} />
                     </FormControl>
                     <FormMessage />
                   </FormItem>
@@ -156,7 +156,7 @@ export function AddEditLinkDialog({ isOpen, onClose, onSubmit, link }: AddEditLi
                   <FormItem>
                     <FormLabel>পুনরাবৃত্তি (0=∞)</FormLabel>
                     <FormControl>
-                      <Input type="number" min="0" {...field} onChange={e => field.onChange(e.target.valueAsNumber)}/>
+                      <Input type="number" min="0" {...field} onChange={e => field.onChange(e.target.value === '' ? '' : e.target.valueAsNumber)}/>
                     </FormControl>
                     <FormMessage />
                   </FormItem>
@@ -175,3 +175,5 @@ export function AddEditLinkDialog({ isOpen, onClose, onSubmit, link }: AddEditLi
     </Dialog>
   );
 }
+
+    
