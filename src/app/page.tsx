@@ -169,6 +169,38 @@ export default function ClickLoopPage() {
     });
   }, [setLogs]);
 
+    const stopLoop = React.useCallback((reason: "manual" | "finished" | "error") => {
+        if (loopTimeoutRef.current) {
+        clearTimeout(loopTimeoutRef.current);
+        loopTimeoutRef.current = null;
+        }
+
+        const wasRunning = loopStateRef.current.isRunning;
+
+        // Update ref state
+        loopStateRef.current.isRunning = false;
+        loopStateRef.current.isPaused = false;
+        loopStateRef.current.currentLinkIndex = -1;
+        loopStateRef.current.iterationCount = 0;
+        loopStateRef.current.singleLoopLinkId = null;
+        // Don't reset visit count on stop, so user can see the final tally
+
+        // Update React state for UI
+        setIsRunning(false);
+        setIsPaused(false);
+        setActiveLink(null);
+        setCurrentUrl("about:blank");
+        // Reset visit count for next run
+        setLinkVisitCount({});
+
+        if(wasRunning){
+            if (reason === "manual") addLog({ eventType: "STOP", message: "ব্যবহারকারী লুপ বন্ধ করেছেন।" });
+            if (reason === "finished") addLog({ eventType: "FINISH", message: "সমস্ত লুপ চক্র সম্পন্ন হয়েছে।" });
+            if (reason === "error") addLog({ eventType: "ERROR", message: "ত্রুটির কারণে লুপ বন্ধ হয়ে গেছে।" });
+        }
+  }, [addLog]);
+
+
   const runCycle = React.useCallback(() => {
     // Use the ref for the most current state to avoid stale closures
     const state = loopStateRef.current;
@@ -179,47 +211,52 @@ export default function ClickLoopPage() {
     const getNextLink = (): LinkItem | null => {
       let availableLinks = state.links.filter(l => l.enabled);
   
-      if (state.singleLoopLinkId) {
-        availableLinks = availableLinks.filter(l => l.id === state.singleLoopLinkId);
-      } else {
-        availableLinks = availableLinks.filter(l => {
-          if (l.iterations === 0) return true;
-          const visitedCount = state.linkVisitCount[l.id] || 0;
-          return visitedCount < l.iterations;
-        });
-      }
-  
       if (availableLinks.length === 0) return null;
-  
-      if (state.settings.maxTotalIterations > 0 && state.iterationCount >= state.settings.maxTotalIterations) {
-        addLog({ eventType: "FINISH", message: `সর্বোচ্চ পুনরাবৃত্তি (${state.settings.maxTotalIterations}) সংখ্যায় পৌঁছেছে।` });
-        return null;
+
+      if (state.singleLoopLinkId) {
+        const singleLink = availableLinks.find(l => l.id === state.singleLoopLinkId);
+        if(!singleLink) return null;
+        if (singleLink.iterations > 0 && (state.linkVisitCount[singleLink.id] || 0) >= singleLink.iterations) return null;
+        return singleLink;
       }
+      
+      if (state.settings.maxTotalIterations > 0 && state.iterationCount >= state.settings.maxTotalIterations) {
+        return null; // Will be handled by the caller
+      }
+
+      // Filter out links that have completed their iterations
+      const incompleteLinks = availableLinks.filter(l => {
+        if (l.iterations === 0) return true;
+        const visitedCount = state.linkVisitCount[l.id] || 0;
+        return visitedCount < l.iterations;
+      });
+
+      if (incompleteLinks.length === 0) return null;
   
       let nextLink: LinkItem | undefined;
       let nextIndex = state.currentLinkIndex;
 
-      if (state.settings.mode === CycleMode.RANDOM && !state.singleLoopLinkId) {
-        const randomIndex = Math.floor(Math.random() * availableLinks.length);
-        nextLink = availableLinks[randomIndex];
-        // Find the index in the original links array
+      if (state.settings.mode === CycleMode.RANDOM) {
+        const randomIndex = Math.floor(Math.random() * incompleteLinks.length);
+        nextLink = incompleteLinks[randomIndex];
+        // Find the index in the original links array for consistency
         nextIndex = state.links.findIndex(l => l.id === nextLink?.id);
 
-      } else {
-        const listToCycle = state.singleLoopLinkId ? state.links.filter(l => l.id === state.singleLoopLinkId) : state.links;
+      } else { // SEQUENTIAL
         // Start searching from the next index
-        for (let i = 0; i < listToCycle.length; i++) {
-            nextIndex = (state.currentLinkIndex + 1 + i) % listToCycle.length;
-            const potentialLink = listToCycle[nextIndex];
-            if (availableLinks.some(l => l.id === potentialLink.id)) {
+        for (let i = 1; i <= state.links.length; i++) {
+            const potentialIndex = (state.currentLinkIndex + i) % state.links.length;
+            const potentialLink = state.links[potentialIndex];
+            if (incompleteLinks.some(l => l.id === potentialLink.id)) {
                 nextLink = potentialLink;
+                nextIndex = potentialIndex;
                 break;
             }
         }
       }
 
       if (nextLink) {
-        loopStateRef.current.currentLinkIndex = state.links.findIndex(l => l.id === nextLink!.id);
+        loopStateRef.current.currentLinkIndex = nextIndex;
       }
       
       return nextLink || null;
@@ -228,8 +265,7 @@ export default function ClickLoopPage() {
     const nextLink = getNextLink();
   
     if (!nextLink) {
-        addLog({ eventType: "FINISH", message: "পরবর্তী কোনো উপলব্ধ লিঙ্ক খুঁজে পাওয়া যায়নি।" });
-        stopLoop("finished");
+        stopLoop(loopStateRef.current.settings.maxTotalIterations > 0 && loopStateRef.current.iterationCount >= loopStateRef.current.settings.maxTotalIterations ? "finished" : "finished");
         return;
     }
     
@@ -248,38 +284,16 @@ export default function ClickLoopPage() {
     
     loopTimeoutRef.current = setTimeout(runCycle, interval > 100 ? interval : 100);
   
-  }, [addLog]); // Intentionally sparse dependencies for stale closure prevention. `stopLoop` is also a dependency.
+  }, [addLog, stopLoop]);
   
-  const stopLoop = React.useCallback((reason: "manual" | "finished" | "error") => {
-    if (loopTimeoutRef.current) {
-      clearTimeout(loopTimeoutRef.current);
-      loopTimeoutRef.current = null;
-    }
-
-    // Reset ref state
-    loopStateRef.current.isRunning = false;
-    loopStateRef.current.isPaused = false;
-    loopStateRef.current.currentLinkIndex = -1;
-    loopStateRef.current.iterationCount = 0;
-    loopStateRef.current.singleLoopLinkId = null;
-    loopStateRef.current.linkVisitCount = {};
-
-    // Reset React state for UI
-    setIsRunning(false);
-    setIsPaused(false);
-    setActiveLink(null);
-    setCurrentUrl("about:blank");
-    setLinkVisitCount({});
-    
-    if (reason === "manual") addLog({ eventType: "STOP", message: "ব্যবহারকারী লুপ বন্ধ করেছেন।" });
-    if (reason === "finished") addLog({ eventType: "FINISH", message: "সমস্ত লুপ চক্র সম্পন্ন হয়েছে।" });
-    if (reason === "error") addLog({ eventType: "ERROR", message: "ত্রুটির কারণে লুপ বন্ধ হয়ে গেছে।" });
-  }, [addLog]);
-
   const startLoop = (singleLinkId: string | null = null) => {
-    const enabledLinks = links.filter(l => l.enabled);
-    if (enabledLinks.length === 0) {
+    const linksToRun = links.filter(l => l.enabled);
+    if (linksToRun.length === 0) {
         toast({ title: "কোনো সক্রিয় লিঙ্ক নেই", description: "শুরু করতে অনুগ্রহ করে অন্তত একটি লিঙ্ক যোগ এবং সক্রিয় করুন।", variant: "destructive" });
+        return;
+    }
+     if (singleLinkId && !linksToRun.some(l => l.id === singleLinkId)) {
+        toast({ title: "লিঙ্কটি সক্রিয় নয়", description: "এই লিঙ্কটি চালানোর জন্য অনুগ্রহ করে প্রথমে এটি সক্রিয় করুন।", variant: "destructive" });
         return;
     }
     
@@ -288,8 +302,7 @@ export default function ClickLoopPage() {
 
     // Reset state for a fresh start via the ref
     loopStateRef.current.iterationCount = 0;
-    const initialIndex = singleLinkId ? links.findIndex(l => l.id === singleLinkId) -1 : -1;
-    loopStateRef.current.currentLinkIndex = initialIndex;
+    loopStateRef.current.currentLinkIndex = -1;
     loopStateRef.current.singleLoopLinkId = singleLinkId;
     loopStateRef.current.linkVisitCount = {};
     loopStateRef.current.isRunning = true;
@@ -310,7 +323,8 @@ export default function ClickLoopPage() {
     }
     
     // Defer the first runCycle call to allow state to update
-    loopTimeoutRef.current = setTimeout(runCycle, 100);
+    // A very short timeout is enough to get the "Preparing" screen up
+    loopTimeoutRef.current = setTimeout(runCycle, 50);
   };
 
   const pauseLoop = () => {
@@ -342,10 +356,9 @@ export default function ClickLoopPage() {
   React.useEffect(() => {
     // Cleanup on unmount
     return () => {
-        if (loopTimeoutRef.current) {
-            clearTimeout(loopTimeoutRef.current);
-        }
+       stopLoop("manual");
     };
+  // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
   const handleAddLink = (data: z.infer<typeof addEditLinkSchema>) => {
@@ -554,7 +567,7 @@ export default function ClickLoopPage() {
                                 <FormItem>
                                     <FormLabel>বিরতি (সেকেন্ড)</FormLabel>
                                     <FormControl>
-                                    <Input type="number" min="1" {...field} value={field.value ?? ''} onChange={e => field.onChange(e.target.value === '' ? null : parseInt(e.target.value, 10))} />
+                                    <Input type="number" min="1" {...field} value={field.value ?? ''} onChange={e => field.onChange(e.target.value === '' ? '' : parseInt(e.target.value, 10))} />
                                     </FormControl>
                                     <FormMessage />
                                 </FormItem>
@@ -567,7 +580,7 @@ export default function ClickLoopPage() {
                                 <FormItem>
                                     <FormLabel>পুনরাবৃত্তি (0=∞)</FormLabel>
                                     <FormControl>
-                                    <Input type="number" min="0" {...field} value={field.value ?? ''} onChange={e => field.onChange(e.target.value === '' ? null : parseInt(e.target.value, 10))}/>
+                                    <Input type="number" min="0" {...field} value={field.value ?? ''} onChange={e => field.onChange(e.target.value === '' ? '' : parseInt(e.target.value, 10))}/>
                                     </FormControl>
                                     <FormMessage />
                                 </FormItem>
@@ -639,7 +652,7 @@ export default function ClickLoopPage() {
                             src={currentUrl}
                             className="w-full h-full border-0"
                             title="ClickLoop Target"
-                            sandbox="allow-forms allow-modals allow-pointer-lock allow-popups allow-popups-to-escape-sandbox allow-same-origin allow-scripts"
+                            sandbox="allow-forms allow-modals allow-pointer-lock allow-popups allow-popups-to-escape-sandbox allow-same-origin allow-scripts allow-top-navigation allow-top-navigation-by-user-activation"
                             referrerPolicy="no-referrer-when-downgrade"
                         ></iframe>
                        :
@@ -655,7 +668,7 @@ export default function ClickLoopPage() {
                               </div>
                             <h2 className="text-3xl font-bold font-headline mb-2">ClickLoop-এ স্বাগতম</h2>
                             <p className="max-w-md text-muted-foreground">
-                                বাম দিক থেকে আপনার প্রথম লিঙ্ক যোগ করে শুরু করুন অথবা একটি বিদ্যমান লুপ চালান।
+                                আপনার প্রথম লিঙ্ক যোগ করে শুরু করুন অথবা একটি বিদ্যমান লুপ চালান।
                             </p>
                           </div>
                         )
