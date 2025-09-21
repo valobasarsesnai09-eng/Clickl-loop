@@ -58,6 +58,7 @@ import {
   Loader2,
   Timer,
   Repeat,
+  Rocket,
 } from "lucide-react";
 import { addEditLinkSchema } from "@/lib/schemas";
 
@@ -159,10 +160,13 @@ export default function ClickLoopPage() {
   });
 
   const addLog = React.useCallback((entry: Omit<LogEntry, "timestamp">) => {
-    setLogs((prev) => [
-      { ...entry, timestamp: Date.now() },
-      ...prev,
-    ]);
+    setLogs((prev) => {
+      const newLogs = [{ ...entry, timestamp: Date.now() }, ...prev];
+      if (newLogs.length > 200) {
+        return newLogs.slice(0, 200);
+      }
+      return newLogs;
+    });
   }, [setLogs]);
 
   const runCycle = React.useCallback(() => {
@@ -193,24 +197,31 @@ export default function ClickLoopPage() {
       }
   
       let nextLink: LinkItem | undefined;
+      let nextIndex = state.currentLinkIndex;
+
       if (state.settings.mode === CycleMode.RANDOM && !state.singleLoopLinkId) {
         const randomIndex = Math.floor(Math.random() * availableLinks.length);
         nextLink = availableLinks[randomIndex];
-        loopStateRef.current.currentLinkIndex = state.links.findIndex(l => l.id === nextLink?.id);
+        // Find the index in the original links array
+        nextIndex = state.links.findIndex(l => l.id === nextLink?.id);
+
       } else {
-        let nextIndex = state.currentLinkIndex;
-        const allPossibleLinks = state.singleLoopLinkId ? state.links.filter(l => l.id === state.singleLoopLinkId) : state.links;
-        
-        for (let i = 0; i < allPossibleLinks.length; i++) {
-            nextIndex = (nextIndex + 1) % allPossibleLinks.length;
-            const potentialLink = allPossibleLinks[nextIndex];
+        const listToCycle = state.singleLoopLinkId ? state.links.filter(l => l.id === state.singleLoopLinkId) : state.links;
+        // Start searching from the next index
+        for (let i = 0; i < listToCycle.length; i++) {
+            nextIndex = (state.currentLinkIndex + 1 + i) % listToCycle.length;
+            const potentialLink = listToCycle[nextIndex];
             if (availableLinks.some(l => l.id === potentialLink.id)) {
                 nextLink = potentialLink;
-                loopStateRef.current.currentLinkIndex = nextIndex;
                 break;
             }
         }
       }
+
+      if (nextLink) {
+        loopStateRef.current.currentLinkIndex = state.links.findIndex(l => l.id === nextLink!.id);
+      }
+      
       return nextLink || null;
     }
   
@@ -218,7 +229,7 @@ export default function ClickLoopPage() {
   
     if (!nextLink) {
         addLog({ eventType: "FINISH", message: "পরবর্তী কোনো উপলব্ধ লিঙ্ক খুঁজে পাওয়া যায়নি।" });
-        stopLoop("finished"); // Call stopLoop which uses React state setters
+        stopLoop("finished");
         return;
     }
     
@@ -237,7 +248,7 @@ export default function ClickLoopPage() {
     
     loopTimeoutRef.current = setTimeout(runCycle, interval > 100 ? interval : 100);
   
-  }, [addLog]); // Dependencies only for functions that don't change often
+  }, [addLog]); // Intentionally sparse dependencies for stale closure prevention. `stopLoop` is also a dependency.
   
   const stopLoop = React.useCallback((reason: "manual" | "finished" | "error") => {
     if (loopTimeoutRef.current) {
@@ -277,7 +288,8 @@ export default function ClickLoopPage() {
 
     // Reset state for a fresh start via the ref
     loopStateRef.current.iterationCount = 0;
-    loopStateRef.current.currentLinkIndex = -1;
+    const initialIndex = singleLinkId ? links.findIndex(l => l.id === singleLinkId) -1 : -1;
+    loopStateRef.current.currentLinkIndex = initialIndex;
     loopStateRef.current.singleLoopLinkId = singleLinkId;
     loopStateRef.current.linkVisitCount = {};
     loopStateRef.current.isRunning = true;
@@ -290,7 +302,7 @@ export default function ClickLoopPage() {
     setIsPaused(false);
     setIsRunning(true);
     
-    if(settings.mode === CycleMode.SINGLE && singleLinkId){
+    if(singleLinkId){
       const link = links.find(l => l.id === singleLinkId);
       addLog({ eventType: "START", message: `"${link?.title}" এর জন্য একক লিঙ্ক লুপ শুরু হয়েছে।` });
     } else {
@@ -298,25 +310,31 @@ export default function ClickLoopPage() {
     }
     
     // Defer the first runCycle call to allow state to update
-    setTimeout(runCycle, 100);
+    loopTimeoutRef.current = setTimeout(runCycle, 100);
   };
 
   const pauseLoop = () => {
-    if (!isRunning || isPaused) return;
-    loopStateRef.current.isPaused = true;
-    setIsPaused(true);
+    if (!loopStateRef.current.isRunning || loopStateRef.current.isPaused) return;
+    
     if (loopTimeoutRef.current) {
         clearTimeout(loopTimeoutRef.current);
         loopTimeoutRef.current = null;
     }
+    
+    loopStateRef.current.isPaused = true;
+    setIsPaused(true);
+    
     addLog({ eventType: "PAUSE", message: "লুপ সাময়িকভাবে বন্ধ হয়েছে।" });
   };
 
   const resumeLoop = () => {
-    if (!isRunning || !isPaused) return;
+    if (!loopStateRef.current.isRunning || !loopStateRef.current.isPaused) return;
+    
     loopStateRef.current.isPaused = false;
     setIsPaused(false);
+    
     addLog({ eventType: "RESUME", message: "লুপ আবার শুরু হয়েছে।" });
+    
     // The loop will resume on the next timeout
     runCycle();
   };
@@ -349,13 +367,16 @@ export default function ClickLoopPage() {
     const currentTitle = form.getValues('title');
     if (url && !currentTitle) {
       try {
+        form.setValue('title', 'শিরোনাম আনা হচ্ছে...', { shouldValidate: false });
         const title = await getUrlTitle(url);
         if (title) {
           form.setValue('title', title, { shouldValidate: true });
           toast({ title: "শিরোনাম প্রস্তাব করা হয়েছে", description: "আমরা URL এর উপর ভিত্তি করে একটি শিরোনাম প্রস্তাব করেছি।" });
+        } else {
+          form.setValue('title', '', { shouldValidate: false });
         }
       } catch (error) {
-         // Silently fail
+         form.setValue('title', '', { shouldValidate: false });
       }
     }
   };
@@ -444,11 +465,11 @@ export default function ClickLoopPage() {
           <CardContent className="flex flex-col gap-3">
               <div className="flex items-center justify-between text-sm text-muted-foreground">
                   <div className="flex items-center gap-4">
-                      <Badge variant={isActive ? "default" : "secondary"} className="gap-1.5 pl-2">
+                      <Badge variant={isActive ? "primary" : "secondary"} className="gap-1.5 pl-2">
                           <Timer className="size-3.5" />
                           বিরতি: {effectiveInterval} সেকেন্ড
                       </Badge>
-                      <Badge variant={isActive ? "default" : "secondary"} className="gap-1.5 pl-2">
+                      <Badge variant={isActive ? "primary" : "secondary"} className="gap-1.5 pl-2">
                           <Repeat className="size-3.5" />
                           পুনরাবৃত্তি: {isRunning ? `${visits} /` : ''} {link.iterations === 0 ? "∞" : link.iterations}
                       </Badge>
@@ -580,7 +601,7 @@ export default function ClickLoopPage() {
             
             <footer className="p-4 gap-4 border-t">
               {isRunning && activeLink && (
-                  <div className="p-3 rounded-lg bg-accent/50 text-accent-foreground text-sm mb-4">
+                  <div className="p-3 rounded-lg bg-accent text-accent-foreground text-sm mb-4">
                       <p className="font-bold truncate">বর্তমান: {activeLink.title}</p>
                       <p className="text-xs text-muted-foreground">
                           মোট পুনরাবৃত্তি: {loopStateRef.current.iterationCount} / {settings.maxTotalIterations > 0 ? settings.maxTotalIterations : '∞'}
@@ -628,18 +649,14 @@ export default function ClickLoopPage() {
                                 <p className="text-muted-foreground">লুপ প্রস্তুত করা হচ্ছে...</p>
                             </div>
                         :
-                          <div className="flex flex-col items-center justify-center h-full text-center p-8">
-                            <div className="relative w-full max-w-lg aspect-video mb-8">
-                                <Image 
-                                    src={emptyStateImage.imageUrl} 
-                                    alt={emptyStateImage.description} 
-                                    fill
-                                    className="object-cover rounded-lg"
-                                    data-ai-hint={emptyStateImage.imageHint}
-                                />
-                            </div>
-                            <h2 className="text-3xl font-bold font-headline mb-2">ClickLoop এ স্বাগতম</h2>
-                            <p className="max-w-md text-muted-foreground mb-6">আপনার প্রথম লিঙ্ক যোগ করে শুরু করুন অথবা একটি লুপ চালান।</p>
+                          <div className="flex flex-col items-center justify-center h-full text-center p-8 bg-background">
+                              <div className="p-6 bg-primary/10 rounded-full mb-6">
+                                <Rocket className="size-12 text-primary" />
+                              </div>
+                            <h2 className="text-3xl font-bold font-headline mb-2">ClickLoop-এ স্বাগতম</h2>
+                            <p className="max-w-md text-muted-foreground">
+                                বাম দিক থেকে আপনার প্রথম লিঙ্ক যোগ করে শুরু করুন অথবা একটি বিদ্যমান লুপ চালান।
+                            </p>
                           </div>
                         )
                        }
