@@ -320,12 +320,13 @@ export default function ClickLoopPage() {
       } else {
         let attempts = 0;
         let nextIndex = currentLinkIndexRef.current;
-        while (attempts < links.length) {
-          nextIndex = (nextIndex + 1) % links.length;
-          const potentialLink = links[nextIndex];
+        const allLinks = singleLoopLinkIdRef.current ? links.filter(l => l.id === singleLoopLinkIdRef.current) : links;
+        while (attempts < allLinks.length) {
+          nextIndex = (nextIndex + 1) % allLinks.length;
+          const potentialLink = allLinks[nextIndex];
           if (availableLinks.some(l => l.id === potentialLink.id)) {
             nextLink = potentialLink;
-            currentLinkIndexRef.current = nextIndex;
+            currentLinkIndexRef.current = links.findIndex(l => l.id === nextLink?.id);
             break;
           }
           attempts++;
@@ -344,17 +345,19 @@ export default function ClickLoopPage() {
       setActiveLink(nextLink);
       addLog({ eventType: "LOAD", message: `লোড হচ্ছে: ${nextLink.title} (${nextLink.url}) - ভিজিট: ${linkVisitCountRef.current[nextLink.id]}${nextLink.iterations > 0 ? '/' + nextLink.iterations : ''}` });
   
-      // The timeout is now set inside the main useEffect body to be reactive.
     };
   
-    // Clear any existing timeout before setting a new one.
     if (loopTimeoutRef.current) {
       clearTimeout(loopTimeoutRef.current);
     }
   
-    // Determine the interval for the NEXT cycle.
     const currentLink = activeLink;
-    const interval = currentLink ? (settings.globalInterval > 0 ? settings.globalInterval : currentLink.intervalSec) * 1000 : 100; // Use a small delay for the very first load
+    let interval;
+    if (currentLink) {
+      interval = (settings.globalInterval > 0 ? settings.globalInterval : currentLink.intervalSec) * 1000;
+    } else {
+      interval = 100; // Small delay for the very first load
+    }
   
     loopTimeoutRef.current = setTimeout(runCycle, interval);
   
@@ -623,5 +626,7 @@ export default function ClickLoopPage() {
     </TooltipProvider>
   );
 }
+
+    
 
     
