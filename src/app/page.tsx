@@ -538,7 +538,8 @@ export default function ClickLoopPage() {
                             src={currentUrl}
                             className="w-full h-full border-0"
                             title="ClickLoop Target"
-                            sandbox="allow-forms allow-modals allow-pointer-lock allow-popups allow-popups-to-escape-sandbox allow-same-origin allow-scripts allow-presentation"
+                            sandbox="allow-forms allow-modals allow-pointer-lock allow-popups allow-popups-to-escape-sandbox allow-same-origin allow-scripts"
+                            referrerPolicy="no-referrer-when-downgrade"
                         ></iframe>
                        }
                         {(isRunning && currentUrl === 'about:blank') && 
