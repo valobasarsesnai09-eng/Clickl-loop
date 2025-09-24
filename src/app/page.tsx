@@ -59,8 +59,10 @@ import {
   Timer,
   Repeat,
   Rocket,
+  Sparkles,
 } from "lucide-react";
 import { addEditLinkSchema } from "@/lib/schemas";
+import { suggestClickLoopContent } from "@/ai/flows/suggest-click-loop-content";
 
 
 const emptyStateImage = PlaceHolderImages.find(
@@ -118,6 +120,7 @@ export default function ClickLoopPage() {
     "edit" | "settings" | "logs" | null
   >(null);
   const [editingLink, setEditingLink] = React.useState<LinkItem | null>(null);
+  const [isSuggesting, setIsSuggesting] = React.useState(false);
 
   // --- Core Loop Logic Refs ---
   const loopTimeoutRef = React.useRef<NodeJS.Timeout | null>(null);
@@ -436,6 +439,48 @@ export default function ClickLoopPage() {
     setDialogOpen("edit");
   };
 
+  const handleSuggestLinks = async () => {
+    const urlFieldValue = form.getValues("url");
+    if (!urlFieldValue) {
+      toast({
+        title: "একটি বিষয় প্রয়োজন",
+        description: "অনুগ্রহ করে URL ফিল্ডে একটি বিষয় বা টপিক লিখুন।",
+        variant: "destructive",
+      });
+      return;
+    }
+    setIsSuggesting(true);
+    try {
+      const result = await suggestClickLoopContent({ topic: urlFieldValue });
+      if (result.suggestedUrls && result.suggestedUrls.length > 0) {
+        const suggestedUrl = result.suggestedUrls[0];
+        form.setValue("url", suggestedUrl, { shouldValidate: true });
+        toast({
+          title: "URL প্রস্তাব করা হয়েছে",
+          description: "AI আপনার জন্য একটি URL প্রস্তাব করেছে।",
+        });
+        // Trigger title fetch
+        handleUrlBlur({ target: { value: suggestedUrl } } as React.FocusEvent<HTMLInputElement>);
+      } else {
+        toast({
+          title: "কোনো URL পাওয়া যায়নি",
+          description: "AI এই বিষয়ের জন্য কোনো উপযুক্ত URL খুঁজে পায়নি।",
+          variant: "destructive",
+        });
+      }
+    } catch (error) {
+      console.error("AI suggestion failed:", error);
+      toast({
+        title: "একটি ত্রুটি ঘটেছে",
+        description: "AI লিঙ্ক প্রস্তাব করতে ব্যর্থ হয়েছে। অনুগ্রহ করে আবার চেষ্টা করুন।",
+        variant: "destructive",
+      });
+    } finally {
+      setIsSuggesting(false);
+    }
+  };
+
+
   const LinkCard = ({ link }: { link: LinkItem }) => {
     const visits = linkVisitCount[link.id] || 0;
     const isActive = activeLink?.id === link.id;
@@ -538,9 +583,26 @@ export default function ClickLoopPage() {
                             name="url"
                             render={({ field }) => (
                                 <FormItem>
-                                <FormLabel>URL</FormLabel>
+                                <FormLabel>URL বা বিষয়</FormLabel>
                                 <FormControl>
-                                    <Input placeholder="https://example.com" {...field} onBlur={handleUrlBlur}/>
+                                    <div className="relative">
+                                    <Input placeholder="https://example.com অথবা 'cat videos'" {...field} onBlur={handleUrlBlur}/>
+                                     <Tooltip>
+                                        <TooltipTrigger asChild>
+                                             <Button 
+                                                type="button" 
+                                                variant="ghost" 
+                                                size="icon" 
+                                                className="absolute right-1 top-1/2 -translate-y-1/2 h-7 w-7"
+                                                onClick={handleSuggestLinks}
+                                                disabled={isSuggesting}
+                                                >
+                                                {isSuggesting ? <Loader2 className="animate-spin" /> : <Sparkles />}
+                                            </Button>
+                                        </TooltipTrigger>
+                                        <TooltipContent>AI দ্বারা লিঙ্ক সাজেস্ট করুন</TooltipContent>
+                                    </Tooltip>
+                                    </div>
                                 </FormControl>
                                 <FormMessage />
                                 </FormItem>
@@ -703,3 +765,5 @@ export default function ClickLoopPage() {
     </TooltipProvider>
   );
 }
+
+    
