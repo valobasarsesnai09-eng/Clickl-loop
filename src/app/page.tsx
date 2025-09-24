@@ -108,7 +108,6 @@ export default function ClickLoopPage() {
 
   const [isRunning, setIsRunning] = React.useState(false);
   const [isPaused, setIsPaused] = React.useState(false);
-  const [currentUrl, setCurrentUrl] = React.useState("about:blank");
   const [activeLink, setActiveLink] = React.useState<LinkItem | null>(null);
   const [linkVisitCount, setLinkVisitCount] = React.useState<Record<string, number>>({});
 
@@ -130,6 +129,7 @@ export default function ClickLoopPage() {
 
   // --- Core Loop Logic Refs ---
   const loopTimeoutRef = React.useRef<NodeJS.Timeout | null>(null);
+  const popupWindowRef = React.useRef<Window | null>(null);
   const loopStateRef = React.useRef({
       isRunning: false,
       isPaused: false,
@@ -180,8 +180,12 @@ export default function ClickLoopPage() {
 
     const stopLoop = React.useCallback((reason: "manual" | "finished" | "error") => {
         if (loopTimeoutRef.current) {
-        clearTimeout(loopTimeoutRef.current);
-        loopTimeoutRef.current = null;
+            clearTimeout(loopTimeoutRef.current);
+            loopTimeoutRef.current = null;
+        }
+        if (popupWindowRef.current && !popupWindowRef.current.closed) {
+            popupWindowRef.current.close();
+            popupWindowRef.current = null;
         }
 
         const wasRunning = loopStateRef.current.isRunning;
@@ -198,7 +202,6 @@ export default function ClickLoopPage() {
         setIsRunning(false);
         setIsPaused(false);
         setActiveLink(null);
-        setCurrentUrl("about:blank");
         // Reset visit count for next run
         setLinkVisitCount({});
 
@@ -285,10 +288,16 @@ export default function ClickLoopPage() {
   
     // Update React state for UI rendering
     setLinkVisitCount(prev => ({...prev, [nextLink.id]: newVisitCount}));
-    setCurrentUrl(getProxiedUrl(nextLink.url));
     setActiveLink(nextLink);
     addLog({ eventType: "LOAD", message: `লোড হচ্ছে: ${nextLink.title} (${nextLink.url}) - ভিজিট: ${newVisitCount}${nextLink.iterations > 0 ? '/' + nextLink.iterations : ''}` });
   
+    // Close previous window and open new one
+    if (popupWindowRef.current && !popupWindowRef.current.closed) {
+        popupWindowRef.current.close();
+    }
+    popupWindowRef.current = window.open(getProxiedUrl(nextLink.url), "_blank", "width=800,height=600");
+
+
     const interval = (state.settings.globalInterval > 0 ? state.settings.globalInterval : nextLink.intervalSec) * 1000;
     
     loopTimeoutRef.current = setTimeout(runCycle, interval > 100 ? interval : 100);
@@ -320,7 +329,6 @@ export default function ClickLoopPage() {
     // Update React state for UI
     setLinkVisitCount({});
     setActiveLink(null);
-    setCurrentUrl("about:blank")
     setIsPaused(false);
     setIsRunning(true);
     
@@ -332,7 +340,6 @@ export default function ClickLoopPage() {
     }
     
     // Defer the first runCycle call to allow state to update
-    // A very short timeout is enough to get the "Preparing" screen up
     loopTimeoutRef.current = setTimeout(runCycle, 50);
   };
 
@@ -342,6 +349,10 @@ export default function ClickLoopPage() {
     if (loopTimeoutRef.current) {
         clearTimeout(loopTimeoutRef.current);
         loopTimeoutRef.current = null;
+    }
+     if (popupWindowRef.current) {
+        popupWindowRef.current.close();
+        popupWindowRef.current = null;
     }
     
     loopStateRef.current.isPaused = true;
@@ -709,24 +720,16 @@ export default function ClickLoopPage() {
             </footer>
         </div>
         
-        {/* Right Column: Iframe and Welcome */}
+        {/* Right Column: Welcome / Dashboard */}
         <div className="lg:col-span-2 md:col-span-1 flex flex-col h-screen border-l">
             <main className="flex-1 bg-muted/20 relative">
                 {isClient && (
                     <>
-                       {currentUrl !== 'about:blank' ?
-                        <iframe
-                            key={currentUrl}
-                            src={currentUrl}
-                            className="w-full h-full border-0"
-                            title="ClickLoop Target"
-                            referrerPolicy="origin-when-cross-origin"
-                        ></iframe>
-                       :
-                        (isRunning ? 
+                        {isRunning && !isPaused ? 
                             <div className="absolute inset-0 bg-background/80 flex flex-col items-center justify-center gap-4">
                                 <Loader2 className="size-8 animate-spin text-primary" />
-                                <p className="text-muted-foreground">লুপ প্রস্তুত করা হচ্ছে...</p>
+                                <p className="text-muted-foreground">লুপ চলছে...</p>
+                                <p className="text-sm max-w-sm text-center">লিঙ্কগুলো নতুন পপ-আপ উইন্ডোতে খোলা হচ্ছে। অনুগ্রহ করে পপ-আপ ব্লক করা নেই তা নিশ্চিত করুন।</p>
                             </div>
                         :
                           <div className="flex flex-col items-center justify-center h-full text-center p-8 bg-background">
@@ -735,11 +738,10 @@ export default function ClickLoopPage() {
                               </div>
                             <h2 className="text-3xl font-bold font-headline mb-2">ClickLoop-এ স্বাগতম</h2>
                             <p className="max-w-md text-muted-foreground">
-                                আপনার প্রথম লিঙ্ক যোগ করে শুরু করুন অথবা একটি বিদ্যমান লুপ চালান।
+                                আপনার প্রথম লিঙ্ক যোগ করে শুরু করুন অথবা একটি বিদ্যমান লুপ চালান। লিঙ্কগুলো নতুন উইন্ডোতে খোলা হবে।
                             </p>
                           </div>
-                        )
-                       }
+                        }
                     </>
                 )}
             </main>
@@ -770,3 +772,5 @@ export default function ClickLoopPage() {
     </TooltipProvider>
   );
 }
+
+    
