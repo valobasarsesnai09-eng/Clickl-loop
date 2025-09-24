@@ -720,7 +720,6 @@ export default function ClickLoopPage() {
                             src={currentUrl}
                             className="w-full h-full border-0"
                             title="ClickLoop Target"
-                            sandbox="allow-forms allow-modals allow-pointer-lock allow-popups allow-popups-to-escape-sandbox allow-scripts allow-same-origin"
                             referrerPolicy="origin-when-cross-origin"
                         ></iframe>
                        :
@@ -771,5 +770,3 @@ export default function ClickLoopPage() {
     </TooltipProvider>
   );
 }
-
-    
