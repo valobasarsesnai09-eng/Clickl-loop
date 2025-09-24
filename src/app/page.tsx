@@ -720,7 +720,7 @@ export default function ClickLoopPage() {
                             src={currentUrl}
                             className="w-full h-full border-0"
                             title="ClickLoop Target"
-                            sandbox="allow-forms allow-modals allow-pointer-lock allow-popups allow-popups-to-escape-sandbox allow-same-origin allow-scripts allow-top-navigation allow-top-navigation-by-user-activation"
+                            sandbox="allow-forms allow-modals allow-pointer-lock allow-popups allow-popups-to-escape-sandbox allow-scripts allow-top-navigation allow-top-navigation-by-user-activation"
                             referrerPolicy="origin-when-cross-origin"
                         ></iframe>
                        :
