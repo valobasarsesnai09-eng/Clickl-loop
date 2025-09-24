@@ -214,6 +214,12 @@ export default function ClickLoopPage() {
         return;
     }
   
+    // Close previous window if it exists
+    if (popupWindowRef.current && !popupWindowRef.current.closed) {
+        popupWindowRef.current.close();
+        popupWindowRef.current = null;
+    }
+
     const getNextLink = (): LinkItem | null => {
       let availableLinks = state.links.filter(l => l.enabled);
   
@@ -275,6 +281,10 @@ export default function ClickLoopPage() {
         return;
     }
     
+    // This alert brings focus back to the main app window
+    alert("পরবর্তী লিঙ্কটি একটি নতুন উইন্ডোতে খোলা হবে। চালিয়ে যেতে 'OK' চাপুন।");
+    if (!loopStateRef.current.isRunning || loopStateRef.current.isPaused) return; // Check again in case user stopped during alert
+
     // Update iteration counts in ref
     loopStateRef.current.iterationCount++;
     const newVisitCount = (loopStateRef.current.linkVisitCount[nextLink.id] || 0) + 1;
@@ -285,11 +295,8 @@ export default function ClickLoopPage() {
     setActiveLink(nextLink);
     addLog({ eventType: "LOAD", message: `লোড হচ্ছে: ${nextLink.title} (${nextLink.url}) - ভিজিট: ${newVisitCount}${nextLink.iterations > 0 ? '/' + nextLink.iterations : ''}` });
   
-    // Close previous window and open new one
-    if (popupWindowRef.current && !popupWindowRef.current.closed) {
-        popupWindowRef.current.close();
-    }
-    popupWindowRef.current = window.open(nextLink.url, "_blank", "width=800,height=600");
+    // Open new window
+    popupWindowRef.current = window.open(nextLink.url, "_blank", "width=800,height=600,noopener,noreferrer");
 
 
     const interval = (state.settings.globalInterval > 0 ? state.settings.globalInterval : nextLink.intervalSec) * 1000;
@@ -344,7 +351,7 @@ export default function ClickLoopPage() {
         clearTimeout(loopTimeoutRef.current);
         loopTimeoutRef.current = null;
     }
-     if (popupWindowRef.current) {
+     if (popupWindowRef.current && !popupWindowRef.current.closed) {
         popupWindowRef.current.close();
         popupWindowRef.current = null;
     }
@@ -720,10 +727,11 @@ export default function ClickLoopPage() {
                 {isClient && (
                     <>
                         {isRunning && !isPaused ? 
-                            <div className="absolute inset-0 bg-background/80 flex flex-col items-center justify-center gap-4">
+                            <div className="absolute inset-0 bg-background/80 flex flex-col items-center justify-center gap-4 p-8">
                                 <Loader2 className="size-8 animate-spin text-primary" />
                                 <p className="text-muted-foreground">লুপ চলছে...</p>
                                 <p className="text-sm max-w-sm text-center">লিঙ্কগুলো নতুন পপ-আপ উইন্ডোতে খোলা হচ্ছে। অনুগ্রহ করে পপ-আপ ব্লক করা নেই তা নিশ্চিত করুন।</p>
+                                <p className="text-xs text-muted-foreground mt-4 text-center">বিরতির পর, ফোকাস স্বয়ংক্রিয়ভাবে এই অ্যাপে ফিরে আসবে।</p>
                             </div>
                         :
                           <div className="flex flex-col items-center justify-center h-full text-center p-8 bg-background">
@@ -766,3 +774,5 @@ export default function ClickLoopPage() {
     </TooltipProvider>
   );
 }
+
+    
