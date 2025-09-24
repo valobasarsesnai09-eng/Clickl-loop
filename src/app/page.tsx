@@ -121,12 +121,6 @@ export default function ClickLoopPage() {
   const [editingLink, setEditingLink] = React.useState<LinkItem | null>(null);
   const [isSuggesting, setIsSuggesting] = React.useState(false);
 
-  const GATEWAY_URL = "https://stormmcp.ai/gateway/1ccf09b6-00ae-46d8-9ad8-d5c2f585f553/mcp?url=";
-
-  const getProxiedUrl = (url: string) => {
-    return `${GATEWAY_URL}${encodeURIComponent(url)}`;
-  }
-
   // --- Core Loop Logic Refs ---
   const loopTimeoutRef = React.useRef<NodeJS.Timeout | null>(null);
   const popupWindowRef = React.useRef<Window | null>(null);
@@ -295,7 +289,7 @@ export default function ClickLoopPage() {
     if (popupWindowRef.current && !popupWindowRef.current.closed) {
         popupWindowRef.current.close();
     }
-    popupWindowRef.current = window.open(getProxiedUrl(nextLink.url), "_blank", "width=800,height=600");
+    popupWindowRef.current = window.open(nextLink.url, "_blank", "width=800,height=600");
 
 
     const interval = (state.settings.globalInterval > 0 ? state.settings.globalInterval : nextLink.intervalSec) * 1000;
@@ -772,5 +766,3 @@ export default function ClickLoopPage() {
     </TooltipProvider>
   );
 }
-
-    
