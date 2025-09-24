@@ -58,7 +58,7 @@ import {
   Loader2,
   Timer,
   Repeat,
-  Rocket,
+  AppWindow,
   Sparkles,
 } from "lucide-react";
 import { addEditLinkSchema } from "@/lib/schemas";
@@ -720,7 +720,7 @@ export default function ClickLoopPage() {
                             src={currentUrl}
                             className="w-full h-full border-0"
                             title="ClickLoop Target"
-                            sandbox="allow-forms allow-modals allow-pointer-lock allow-popups allow-popups-to-escape-sandbox allow-scripts allow-top-navigation allow-top-navigation-by-user-activation"
+                            sandbox="allow-forms allow-modals allow-pointer-lock allow-popups allow-popups-to-escape-sandbox allow-scripts"
                             referrerPolicy="origin-when-cross-origin"
                         ></iframe>
                        :
@@ -732,7 +732,7 @@ export default function ClickLoopPage() {
                         :
                           <div className="flex flex-col items-center justify-center h-full text-center p-8 bg-background">
                               <div className="p-6 bg-primary/10 rounded-full mb-6">
-                                <Rocket className="size-12 text-primary" />
+                                <AppWindow className="size-12 text-primary" />
                               </div>
                             <h2 className="text-3xl font-bold font-headline mb-2">ClickLoop-এ স্বাগতম</h2>
                             <p className="max-w-md text-muted-foreground">
