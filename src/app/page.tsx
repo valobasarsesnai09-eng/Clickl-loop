@@ -122,6 +122,12 @@ export default function ClickLoopPage() {
   const [editingLink, setEditingLink] = React.useState<LinkItem | null>(null);
   const [isSuggesting, setIsSuggesting] = React.useState(false);
 
+  const GATEWAY_URL = "https://stormmcp.ai/gateway/1ccf09b6-00ae-46d8-9ad8-d5c2f585f553/mcp?url=";
+
+  const getProxiedUrl = (url: string) => {
+    return `${GATEWAY_URL}${encodeURIComponent(url)}`;
+  }
+
   // --- Core Loop Logic Refs ---
   const loopTimeoutRef = React.useRef<NodeJS.Timeout | null>(null);
   const loopStateRef = React.useRef({
@@ -279,7 +285,7 @@ export default function ClickLoopPage() {
   
     // Update React state for UI rendering
     setLinkVisitCount(prev => ({...prev, [nextLink.id]: newVisitCount}));
-    setCurrentUrl(nextLink.url);
+    setCurrentUrl(getProxiedUrl(nextLink.url));
     setActiveLink(nextLink);
     addLog({ eventType: "LOAD", message: `লোড হচ্ছে: ${nextLink.title} (${nextLink.url}) - ভিজিট: ${newVisitCount}${nextLink.iterations > 0 ? '/' + nextLink.iterations : ''}` });
   
@@ -715,7 +721,7 @@ export default function ClickLoopPage() {
                             className="w-full h-full border-0"
                             title="ClickLoop Target"
                             sandbox="allow-forms allow-modals allow-pointer-lock allow-popups allow-popups-to-escape-sandbox allow-same-origin allow-scripts allow-top-navigation allow-top-navigation-by-user-activation"
-                            referrerPolicy="no-referrer-when-downgrade"
+                            referrerPolicy="no-referrer"
                         ></iframe>
                        :
                         (isRunning ? 
@@ -765,5 +771,7 @@ export default function ClickLoopPage() {
     </TooltipProvider>
   );
 }
+
+    
 
     
